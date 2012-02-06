@@ -6,7 +6,7 @@ PYDEM
 Basics
 ------
 
-This is an as-yet-unstable set of python bindings for LAMMPS, created because I couldn't get the ctypes-based python to work, and because ultimately I want a better interface than$
+This is an as-yet-unstable set of python bindings for LAMMPS, created because I couldn't get the ctypes-based python to work, and because ultimately I want a better interface than that!
 
 All versions will operate in approximately the following way:
 
