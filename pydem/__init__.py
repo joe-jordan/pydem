@@ -110,13 +110,6 @@ def save_system(data, filename):
   outfile.write(json_string)
   outfile.close()
 
-def run_simulation(data, endpoint=Endpoint.TIMESTEP_LIMIT, timestep_limit=10000):
-  if not endpoint == Endpoint.TIMESTEP_LIMIT:
-    timestep_limit = None
-  temp_script, stdout_file, dump_file = lammps.generate_script(data, timestep_limit)
-  os.system("lammps < %s > %s" % temp_script, stdout_file)
-  dump_lines = open(dump_file, 'r').readlines()
-  new_data = lammps.parse_dump(dump_lines)
-  return new_data
+
 
 

@@ -25,10 +25,38 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
+import tempfile, os, shutil
+
+_temp_dir
+_old_path
+
+_script_filename = 'script.lammps'
+_stdout_filename = 'stdout.out'
+_dump_filename = 'output.txt'
+
+
+
+def run_simulation(data, timestep_limit=10000):
+  temp_dir = lammps.generate_script(data, timestep_limit)
+  _old_path = os.getcwd()
+  
+  os.chdir(temp_dir)
+  
+  os.system("lammps < %s > %s" % _script_filename, _stdout_filename)
+  dump_lines = open(_dump_filename, 'r').readlines()
+  new_data = lammps.parse_dump(dump_lines)
+  
+  os.chdir(_old_path)
+  shutil.rmtree(_temp_dir)
+  
+  return new_data
 
 def generate_script(data, timestep_limit):
-  # TODO - write two temp files and define the location for a third.
-  return temp_file, stdout_file, dump_file
+  _temp_dir = tempfile.mkdtemp()
+  
+  # TODO generate the script text in response to the data.
+  
+  return _temp_dir
 
 
 def parse_dump(dump_lines):

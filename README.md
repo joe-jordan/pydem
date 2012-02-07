@@ -27,6 +27,6 @@ Future Versions
 Since the ultimate aim is to avoid the domain speific LAMMPS language, this version will not support constraints, tests or loops in LAMMPS; it will run one granular simulation for a specified number of timesteps and then scoop up the data.
 
 **Version 2** will use a simple C interface combined with Cython to expose a well defined set of functionality for passing data between Python and C++ land.
-It will also provide an interface for using LAMMPS `compute` functionality, although the results of computes will be passed all the way out to Python for processing and mid-simulation logic, so that one can use rich language features to `if` and `elif`, loop and `raise`, `map` and `reduce`.
+It will also provide an interface for using LAMMPS `compute` functionality, although the results of computes will be passed all the way out to Python for processing and mid-simulation logic, so that one can use rich language features to `if` and `elif`, loop and `raise`, `map` and `reduce`. Note that you'll still be able to do this in version 1, it'll just be a lot slower, and you'll have to implement your own `compute`s.
 
 **Version 3** might head over to LAMMPS' cousin LIGGGHTS and expose some of the extra granular features there to similar Cythonic treatment.
