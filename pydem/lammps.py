@@ -33,6 +33,7 @@ _old_path
 _script_filename = 'script.lammps'
 _stdout_filename = 'stdout.out'
 _dump_filename = 'output.txt'
+_binary_restart_filename = 'output.bin'
 
 _script_template = """
 atom_style ATOMSTYLE
@@ -49,14 +50,18 @@ region outer_box block SIMULATION_ZONE
 create_box NUM_ATOMS outer_box
 
 #############################################
-# unprocessed:
+# TODO: create atoms script...
 
 create_atoms 1 random 400 29875 my_box
 create_atoms 2 random 400 98207 my_box
 
+
 communicate single vel yes
 run_style verlet
 
+
+#############################################
+# TODO: create atoms script...
 # set up a sensible bidisperse granular system:
 set type 1 diameter 0.9
 set type 2 diameter 0.6
@@ -64,31 +69,28 @@ set type 2 diameter 0.6
 set type 1 density 3.0
 set type 2 density 3.0
 
-# make sure particle positions are updated, walls bounced off and gravity is applied!
-# force model for these params:
-# k = 159041.6666
-# eta = 436.035246
-# delta_t = 0.0004443251
 
-pair_style gran/hooke 159041.6666 45440.4761714286 436.035246 218.017623 0.285714285 1
+
+# K_N K_T ETA_N ETA_T ROTATION_RATIO INCLUDE_TANGENTIAL_FRICTION
+pair_style gran/hooke PARTICLE_PARTICLE_INTERACTIONS
 pair_coeff * *
 
 fix 1 all nve/sphere
 
 fix 2 all enforce2d
-fix 3 all gravity 10.0 vector 0.0 -1.0 0.0
+fix 3 all gravity GRAVITY_SIZE vector GRAVITY_X GRAVITY_Y GRAVITY_Z
 
-fix 4 all wall/gran 159041.6666 45440.4761714286 436.035246 218.017623 0.285714285 1 xplane 0.0 40.0
-fix 5 all wall/gran 159041.6666 45440.4761714286 436.035246 218.017623 0.285714285 1 yplane 0.0 40.0
+# K_N_WALL K_T_WALL ETA_N_WALL ETA_T_WALL ROTATION_RATIO_WALL INCLUDE_TANGENTIAL_FRICTION
+fix 4 all wall/gran PARTICLE_WALL_INTERACTIONS xplane 0.0 X_LIMIT
+fix 5 all wall/gran PARTICLE_WALL_INTERACTIONS yplane 0.0 Y_LIMIT
 
-timestep 0.0004443251
+timestep DELTA_T
 
-# save a picture every blah timesteps
-dump picture all image 500 out.*.jpg type diameter size 1280 800
+dump data all custom TIMESTEP_LIMIT DUMP_FILENAME radius mass x y z vx vy vz omegax omegay omegaz
 
-dump data all custom 499999 dump.*.txt x y radius
+run TIMESTEP_LIMIT
 
-run 500000
+write_restart RESTART_FILENAME
 
 """
 
