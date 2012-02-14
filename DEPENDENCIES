@@ -1,0 +1,4 @@
+Other python modules required to make this one work:
+
+cjson - faster json decoding, with significantly less RAM usage than python's built in json support. Essential when working with large json files.
+        available at http://pypi.python.org/pypi/python-cjson 

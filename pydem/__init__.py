@@ -27,6 +27,21 @@ class Endpoint:
   TIMESTEP_LIMIT = 2
 
 class SimulationParams:
+  """note that you must either provide a dict object force model with your parameters, or
+     the overlap, restitution and collision ratio parameters.
+  """
+  compulsory_keys = [
+    'dimension',
+    'x_limit',
+    'y_limit'
+  ]
+  optional_keys = [
+    'z_limit',
+    'force_model',
+    'resitiution_coefficient',
+    'max_overlap_ratio',
+    'collision_time_ratio'
+  ]
   def __init__(self, params=None):
     self.json = {}
     if not params == None:
@@ -45,8 +60,12 @@ class SimulationParams:
     self.validate()
   
   def validate(self):
-    # TODO - validate parameters entered.
-    pass
+    # TODO adjust compulsory and optional keys on the basis of complex dependency rules.
+    for key in SimulationParams.compulsory_keys:
+      try:
+        self.json[key]
+      except KeyError:
+        raise InvalidArgumentError("Compulsory property '" + key + "' was not specified.")
   
   def to_json(self):
     return self.json
@@ -56,15 +75,14 @@ class InvalidArgumentError(ValueError):
   pass
 
 class Particle:
+  """particles, assumed to be spherical for now."""
   compulsory_keys = [
-    'shape',
     'position',
     'radius'
   ]
   optional_keys = [
     'velocity',
-    'orientation',
-    'rotational_velocity'
+    'angular_velocity'
   ]
   def __init__(self, params=None):
     self.json = {}
