@@ -20,15 +20,89 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
-import gzip, cjson, os, lammps
+import gzip, cjson, os, lammps, math
+
+def vector_length(vector):
+  """ arbitrary size cartesean vector length evaluation. """
+  return sum([v_i ** 2 for v_i in vector]) ** (1.0 / len(vector))
 
 class Endpoint:
   EQUILIBRIUM = 1
   TIMESTEP_LIMIT = 2
 
+class ForceModel:
+  """A class encapsulating the hookian and hertzian intergranular force models.
+     to build, specify the constants directly, or give proxies like the maximum
+     acceptable particle overlap and restitution coefficient.
+  """
+  compulsory_keys_lazy = [
+    'type',
+    'resitiution_coefficient',
+    'max_overlap_ratio',
+    'collision_time_ratio',
+    'include_tangential_forces',
+    'gravity'
+  ]
+  compulsory_keys_specific = [
+    'type',
+    'pairwise_constants',
+    'boundary_constants',
+    'timestep',
+    'include_tangential_forces',
+    'gravity'
+  ]
+  keys_for_constants = [
+    'spring_constant_norm',
+    'damping_norm',
+    'spring_constant_tan',
+    'damping_tan'
+  ]
+  
+  def is_lazy(self, params):
+    """simplistic test whether user is providing proxies or constants."""
+    return 'restitution_coefficient' in params and not 'timestep' in params  
+  
+  def __init__(self, params, data):
+    if not self.is_lazy(params):
+      self.json = params
+    else:
+      self.initialise_lazy(params, data)
+    
+    self.validate(data)
+  
+  def initialise_lazy(self, params, data):
+    
+    # pairwise:
+    pairwise_constants = {}
+    max_mass = max([e['mass'] for e in data['elements']])
+    
+    pairwise_constants['spring_constant_norm'] = (
+      max_mass * (vector_length(params['gravity']))
+    ) / (
+      min([e['radius'] * 2.0 for e in data['elements']]) * params['max_overlap_ratio']
+    ) ** 2
+    
+    pairwise_constants['spring_constant_tan'] = pairwise_constants['spring_constant_norm'] * 2.0 / 7.0
+    
+    pairwise_constants['damping_norm'] = math.sqrt(
+      (
+        2.0 * pairwise_constants['spring_constant_norm'] * max_mass
+      ) / (
+        1.0 + ((math.log(params['resitiution_coefficient']))/(2.0 * math.pi)) ** 2
+      )
+    )
+    
+    pairwise_constants['damping_tan'] = pairwise_constants['damping_norm'] / 2.0
+    
+    
+  
+  def validate(self, data):
+    pass
+
 class SimulationParams:
   """note that you must either provide a dict object force model with your parameters, or
-     the overlap, restitution and collision ratio parameters.
+     the overlap, restitution and collision ratio parameters, and whether to enable 
+     tangential forces.
   """
   compulsory_keys = [
     'dimension',
@@ -38,9 +112,6 @@ class SimulationParams:
   optional_keys = [
     'z_limit',
     'force_model',
-    'resitiution_coefficient',
-    'max_overlap_ratio',
-    'collision_time_ratio'
   ]
   def __init__(self, params=None):
     self.json = {}
@@ -49,7 +120,6 @@ class SimulationParams:
       self.validate()
     
   def initialise(self, params):
-    # TODO - set up internal data.
     pass
   
   def __getitem__(self, key):
@@ -59,9 +129,19 @@ class SimulationParams:
     self.json[key] = value
     self.validate()
   
+  def validate_force_model(self):
+    compulsory_keys = [
+      
+    ]
+    
+  
   def validate(self):
-    # TODO adjust compulsory and optional keys on the basis of complex dependency rules.
-    for key in SimulationParams.compulsory_keys:
+    
+    local_compulsory = SimulationParams.compulsory_keys[:]
+    if self.json['dimension'] > 2:
+      local_compulsory.append('z_limit')
+    
+    for key in local_compulsory:
       try:
         self.json[key]
       except KeyError:
@@ -78,7 +158,8 @@ class Particle:
   """particles, assumed to be spherical for now."""
   compulsory_keys = [
     'position',
-    'radius'
+    'radius',
+    'mass'
   ]
   optional_keys = [
     'velocity',
