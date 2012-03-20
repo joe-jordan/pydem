@@ -24,13 +24,28 @@ import gzip, cjson, os, lammps, math
 
 def vector_length(vector):
   """ arbitrary size cartesean vector length evaluation. """
-  return sum([v_i ** 2 for v_i in vector]) ** (1.0 / len(vector))
+  return math.sqrt(sum([v_i ** 2 for v_i in vector]))
+
+class JsonContainer:
+  def __getitem__(self, key):
+    return self.json[key]
+  
+  def __setitem__(self, key, value):
+    self.json[key] = value
+    self.validate()
+    
+  def to_json(self):
+    return self.json
 
 class Endpoint:
   EQUILIBRIUM = 1
   TIMESTEP_LIMIT = 2
 
-class ForceModel:
+class ForceModelType:
+  HOOKIAN = 1
+  HERZIAN = 2
+
+class ForceModel(JsonContainer):
   """A class encapsulating the hookian and hertzian intergranular force models.
      to build, specify the constants directly, or give proxies like the maximum
      acceptable particle overlap and restitution coefficient.
@@ -41,7 +56,8 @@ class ForceModel:
     'max_overlap_ratio',
     'collision_time_ratio',
     'include_tangential_forces',
-    'gravity'
+    'gravity',
+    'container_height'
   ]
   compulsory_keys_specific = [
     'type',
@@ -71,19 +87,35 @@ class ForceModel:
     self.validate(data)
   
   def initialise_lazy(self, params, data):
+    if params['type'] == ForceModelType.HOOKIAN:
+      self.initialise_lazy_hookian(params, data)
+    else:
+      raise Exception('hookian force model initialisation is the only type to have been implemented in the wrapper so far - you may specify your own herzian spring/damping values.')
+  
+  def initialise_lazy_hookian(self, params, data):
+    
+    self.json = {
+      'type' : ForceModelType.HOOKIAN,
+      'pairwise_constants' : {},
+      'boundary_constants' : {},
+      'include_tangential_forces' : 1,
+      'gravity' : [0.0, -9.8]
+    }
     
     # pairwise:
     pairwise_constants = {}
     max_mass = max([e['mass'] for e in data['elements']])
     
+    # max_mass / 2.0 is the max reduced mass, and height * g is max velocity squared.
     pairwise_constants['spring_constant_norm'] = (
-      max_mass * (vector_length(params['gravity']))
+      (max_mass / 2.0) * (vector_length(params['gravity']) * params['container_height'])
     ) / (
       min([e['radius'] * 2.0 for e in data['elements']]) * params['max_overlap_ratio']
     ) ** 2
     
     pairwise_constants['spring_constant_tan'] = pairwise_constants['spring_constant_norm'] * 2.0 / 7.0
     
+    # 4 reduced to 2, because again reduced mass.
     pairwise_constants['damping_norm'] = math.sqrt(
       (
         2.0 * pairwise_constants['spring_constant_norm'] * max_mass
@@ -94,49 +126,60 @@ class ForceModel:
     
     pairwise_constants['damping_tan'] = pairwise_constants['damping_norm'] / 2.0
     
+    # and boundary:
+    boundary_constants = {}
+    
+    boundary_constants['spring_constant_norm'] = (
+      (max_mass) * (vector_length(params['gravity']) * params['container_height'])
+    ) / (
+      min([e['radius'] * 2.0 for e in data['elements']]) * params['max_overlap_ratio']
+    ) ** 2
+    
+    boundary_constants['spring_constant_tan'] = boundary_constants['spring_constant_norm'] * 2.0 / 7.0
+    
+    boundary_constants['damping_norm'] = math.sqrt(
+      (
+        4.0 * boundary_constants['spring_constant_norm'] * max_mass
+      ) / (
+        1.0 + ((math.log(params['resitiution_coefficient']))/(2.0 * math.pi)) ** 2
+      )
+    )
+    
+    boundary_constants['damping_tan'] = boundary_constants['damping_norm'] / 2.0
+    
+    # estimate shortest collision time, to set timestep to a suitable value.
+    min_reduced_mass = min([e['mass'] for e in data['elements']]) / 2.0
+    
+    shortest_collision_time = math.pi / math.sqrt(
+      pairwise_constants['spring_constant_norm'] / min_reduced_mass -
+      pairwise_constants['damping_norm']**2 / (4.0 * min_reduced_mass**2)
+    )
+    
+    # we use minimum 30 samples per collision. range 10-100 is acceptable.
+    self.json['timestep'] = shortest_collision_time / 30.0
     
   
   def validate(self, data):
     pass
 
-class SimulationParams:
-  """note that you must either provide a dict object force model with your parameters, or
-     the overlap, restitution and collision ratio parameters, and whether to enable 
-     tangential forces.
+class SimulationParams(JsonContainer):
+  """class which holds simulation-wide settings, like the force interactions
+     and boundary conditions.
   """
   compulsory_keys = [
     'dimension',
     'x_limit',
-    'y_limit'
+    'y_limit',
+    'force_model'
   ]
   optional_keys = [
-    'z_limit',
-    'force_model',
+    'z_limit'
   ]
   def __init__(self, params=None):
-    self.json = {}
-    if not params == None:
-      self.initialise(params)
-      self.validate()
-    
-  def initialise(self, params):
-    pass
-  
-  def __getitem__(self, key):
-    return self.json[key]
-  
-  def __setitem__(self, key, value):
-    self.json[key] = value
+    self.json = params
     self.validate()
   
-  def validate_force_model(self):
-    compulsory_keys = [
-      
-    ]
-    
-  
   def validate(self):
-    
     local_compulsory = SimulationParams.compulsory_keys[:]
     if self.json['dimension'] > 2:
       local_compulsory.append('z_limit')
@@ -147,15 +190,13 @@ class SimulationParams:
       except KeyError:
         raise InvalidArgumentError("Compulsory property '" + key + "' was not specified.")
   
-  def to_json(self):
-    return self.json
 
 
 class InvalidArgumentError(ValueError):
   pass
 
-class Particle:
-  """particles, assumed to be spherical for now."""
+class Particle(JsonContainer):
+  """particles, forced to be spherical for now."""
   compulsory_keys = [
     'position',
     'radius',
@@ -181,9 +222,6 @@ class Particle:
         self.json[key]
       except KeyError:
         raise InvalidArgumentError("Compulsory property '" + key + "' was not specified.")
-  
-  def to_json(self):
-    return self.json
     
 
 def open_system(filename):
