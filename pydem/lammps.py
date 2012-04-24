@@ -27,8 +27,8 @@
 
 import tempfile, os, os.path, shutil
 
-_temp_dir
-_old_path
+#_temp_dir
+#_old_path
 
 _script_filename = 'script.lammps'
 _stdout_filename = 'stdout.out'
