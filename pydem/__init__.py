@@ -113,7 +113,9 @@ class ForceModel(JsonContainer):
     
     # pairwise:
     pairwise_constants = {}
-    max_mass = max([e['mass'] for e in data['elements']])
+    masses = [e['mass'] for e in data['elements']]
+    max_mass = max(masses)
+    min_mass = min(masses)
     
     # max_mass / 2.0 is the max reduced mass, and height * g is max velocity squared.
     pairwise_constants['spring_constant_norm'] = (
@@ -128,7 +130,7 @@ class ForceModel(JsonContainer):
     # 4 reduced to 2, because again reduced mass.
     pairwise_constants['damping_norm'] = math.sqrt(
       (
-        2.0 * pairwise_constants['spring_constant_norm'] * max_mass
+        2.0 * pairwise_constants['spring_constant_norm'] * min_mass
       ) / (
         1.0 + ((math.log(params['resitiution_coefficient']))/(2.0 * math.pi)) ** 2
       )
@@ -165,11 +167,11 @@ class ForceModel(JsonContainer):
     self.json['boundary_constants'] = boundary_constants
     
     # estimate shortest collision time, to set timestep to a suitable value.
-    min_reduced_mass = min([e['mass'] for e in data['elements']]) / 2.0
+    min_reduced_mass = min_mass / 2.0
     
     shortest_collision_time = math.pi / math.sqrt(
       pairwise_constants['spring_constant_norm'] / min_reduced_mass -
-      pairwise_constants['damping_norm']**2 / (4.0 * min_reduced_mass**2)
+      (pairwise_constants['damping_norm'] / 2.0 / min_reduced_mass)**2
     )
     
     # we use minimum 30 samples per collision. range 10-100 is acceptable.
@@ -209,9 +211,9 @@ class SimulationParams(JsonContainer):
   optional_keys = [
     'z_limit'
   ]
-  def __init__(self, params=None, force_model_params=None):
+  def __init__(self, params=None, force_model_params=None, data=None):
     if 'force_model' not in params and force_model_params != None:
-      params['force_model'] = ForceModel(force_model_params)
+      params['force_model'] = ForceModel(force_model_params, data)
     self.json = params
     self.validate()
   
