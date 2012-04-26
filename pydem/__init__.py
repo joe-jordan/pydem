@@ -20,7 +20,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
-import gzip, cjson, os, lammps, math
+import gzip, cjson, os, math
 
 def vector_length(vector):
   """ arbitrary size cartesean vector length evaluation. """
@@ -44,6 +44,8 @@ class Endpoint:
 class ForceModelType:
   HOOKIAN = 1
   HERZIAN = 2
+
+import lammps
 
 class ForceModel(JsonContainer):
   """A class encapsulating the hookian and hertzian intergranular force models.
@@ -213,6 +215,8 @@ class SimulationParams(JsonContainer):
   ]
   def __init__(self, params=None, force_model_params=None, data=None):
     if 'force_model' not in params and force_model_params != None:
+      if 'gravity' not in force_model_params and params['dimension'] == 3:
+        force_model_params['gravity'] = [0.0, 0.0, -9.8]
       params['force_model'] = ForceModel(force_model_params, data)
     self.json = params
     self.validate()

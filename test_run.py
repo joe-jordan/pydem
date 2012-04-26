@@ -31,8 +31,9 @@ def generate_elements(min_radius=0.5, max_radius=1.0, y_line=6.0, x_limit=7.0, g
 
   return new_elements
 
+limits = [20.0, 20.0]
 
-elements = generate_elements(y_line=13.0, x_limit=100.0)
+elements = generate_elements(y_line=13.0, x_limit=limits[0])
 
 data = {'elements':elements}
 
@@ -47,8 +48,8 @@ fm = {
 
 data['params'] = d.SimulationParams({
   'dimension' : 2,
-  'x_limit' : 100.0,
-  'y_limit' : 100.0
+  'x_limit' : limits[0],
+  'y_limit' : limits[1]
 }, fm, data)
 
 

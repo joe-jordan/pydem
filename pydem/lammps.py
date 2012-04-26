@@ -26,7 +26,7 @@
 #
 
 import tempfile, os, os.path, shutil
-from pydem import ForceModelType
+from pydem import ForceModelType, vector_length
 
 _script_filename = 'script.lammps'
 _stdout_filename = 'stdout.out'
@@ -36,6 +36,8 @@ _binary_restart_filename = 'output.bin'
 _script_template = """
 atom_style ATOMSTYLE
 units lj
+
+communicate single vel yes
 
 dimension DIMENSION
 
@@ -54,18 +56,17 @@ SETUP_STATEMENTS
 pair_style PARTICLE_PARTICLE_INTERACTIONS
 pair_coeff * *
 
-fix 1 all nve/sphere
+fix update_positions all nve/sphere
 
-fix 2 all enforce2d
-fix 3 all gravity GRAVITY_SIZE vector GRAVITY_X GRAVITY_Y GRAVITY_Z
+2D_FIX
 
-# K_N_WALL K_T_WALL ETA_N_WALL ETA_T_WALL ROTATION_RATIO_WALL INCLUDE_TANGENTIAL_FRICTION
-fix 4 all wall/gran PARTICLE_WALL_INTERACTIONS xplane 0.0 X_LIMIT
-fix 5 all wall/gran PARTICLE_WALL_INTERACTIONS yplane 0.0 Y_LIMIT
+fix grav all gravity GRAVITY_SIZE vector GRAVITY_X GRAVITY_Y GRAVITY_Z
+
+WALL_FIXES
 
 timestep DELTA_T
 
-dump data all custom TIMESTEP_LIMIT DUMP_FILENAME radius mass x y z vx vy vz omegax omegay omegaz
+dump data all custom TIMESTEP_LIMIT DUMP_FILENAME id radius mass x y z vx vy vz omegax omegay omegaz
 
 run TIMESTEP_LIMIT
 
@@ -75,6 +76,7 @@ run TIMESTEP_LIMIT
 """
 
 _create_template = """create_atoms ID single RX RY RZ
+group ID id ID
 """
 
 _setup_template = """set atom ID mass MASS
@@ -84,17 +86,26 @@ velocity ID set VX VY VZ
 
 _setup_angular_template = """set atom ID mass MASS
 set atom ID diameter DIAM
+velocity ID set LX LY LZ rot yes
+velocity ID set VX VY VZ
+"""
+
+_setup_aspherical_angular_template = """set atom ID mass MASS
+set atom ID diameter DIAM
 set atom ID angmom LX LY LZ
 velocity ID set VX VY VZ
 """
 
-_pairwise_interactions_template = """SPRING_TYPE K_N K_T ETA_N ETA_T ROTATION_RATIO INCLUDE_TANGENTIAL_FRICTION
-"""
+_interaction_template = "SPRING_TYPE K_N K_T ETA_N ETA_T ROTATION_RATIO INCLUDE_TANGENTIAL_FRICTION"
+
+_2d_fix = "fix enforce_planar all enforce2d"
 
 _spring_types = {
   ForceModelType.HOOKIAN : 'gran/hooke',
   ForceModelType.HERZIAN : 'gran/hertz/history'
 }
+
+_wall_type = "wall/gran"
 
 def run_simulation(data, timestep_limit=10000):
   temp_dir = tempfile.mkdtemp()
@@ -128,7 +139,7 @@ def generate_script(data, timestep_limit):
   
   # pydem does not endorse unphysical periodic boundary conditions in 
   # mechanically equilibriated granular systems.
-  output_script_text = output_script_text.replace('BOUNDARY', 'f f p' if data['params']['dimension'] > 2 else 'f f f')
+  output_script_text = output_script_text.replace('BOUNDARY', 'f f p' if data['params']['dimension'] == 2 else 'f f f')
   
   # assume lower bound is zero.
   zone_str = ' '.join([
@@ -144,13 +155,13 @@ def generate_script(data, timestep_limit):
   setup_statements = []
   
   for i, e in enumerate(data['elements']):
-    create_statements.append(_string_sub(_create_template, { 'ID' : str(i),
+    create_statements.append(_string_sub(_create_template, { 'ID' : str(i+1),
       'RX' : str(e['position'][0]),
       'RY' : str(e['position'][1]),
       'RZ' : str(e['position'][2]) if data['params']['dimension'] > 2 else '0.0'
     }))
     
-    smap = { 'ID' : str(i),
+    smap = { 'ID' : str(i+1),
       'MASS' : str(e['mass']),
       'DIAM' : str(2.0 * e['radius'])
     }
@@ -185,7 +196,7 @@ def generate_script(data, timestep_limit):
   fm = data['params']['force_model']
   
   output_script_text = output_script_text.replace('PARTICLE_PARTICLE_INTERACTIONS',
-    _string_sub(_pairwise_interaction_template, {
+    _string_sub(_interaction_template, {
       'SPRING_TYPE' : _spring_types[fm['type']],
       'K_N' : str(fm['pairwise_constants']['spring_constant_norm']),
       'K_T' : str(fm['pairwise_constants']['spring_constant_tan']) if fm['include_tangential_forces'] else 'NULL',
@@ -197,11 +208,46 @@ def generate_script(data, timestep_limit):
       'INCLUDE_TANGENTIAL_FRICTION' : '1' if fm['include_tangential_forces'] else '0'
     }))
   
-  # TODO gravity
+  d2fix = ""
+  if data['params']['dimension'] == 2:
+    d2fix = _2d_fix
+  output_script_text = output_script_text.replace('2D_FIX', d2fix)
   
-  # TODO wall interactions
+  output_script_text = output_script_text.replace(
+    'GRAVITY_SIZE', str(vector_length(fm['gravity'])) ).replace(
+    'GRAVITY_X', str(fm['gravity'][0]) ).replace(
+    'GRAVITY_Y', str(fm['gravity'][1]) ).replace(
+    'GRAVITY_Z', str(fm['gravity'][2]) if data['params']['dimension'] == 3 else '0.0')
   
-  # TODO timestep, data dump, restart file 
+  wall_physics = _string_sub(_interaction_template, {
+    'SPRING_TYPE' : _wall_type,
+    'K_N' : str(fm['boundary_constants']['spring_constant_norm']),
+    'K_T' : str(fm['boundary_constants']['spring_constant_tan']) if fm['include_tangential_forces'] else 'NULL',
+    'ETA_N' : str(fm['boundary_constants']['damping_norm']),
+    'ETA_T' : str(fm['boundary_constants']['damping_tan']) if fm['include_tangential_forces'] else 'NULL',
+    'ROTATION_RATIO' : str(
+      fm['boundary_constants']['spring_constant_tan'] / fm['boundary_constants']['spring_constant_norm']
+    ) if fm['include_tangential_forces'] else '0.5',
+    'INCLUDE_TANGENTIAL_FRICTION' : '1' if fm['include_tangential_forces'] else '0'
+  })
+  
+  wall_fixes = [
+    'fix xwalls all ' + wall_physics + ' xplane 0.0 ' + str(data['params']['x_limit']),
+    'fix ywalls all ' + wall_physics + ' yplane 0.0 ' + str(data['params']['y_limit'])
+  ]
+  
+  if data['params']['dimension'] == 3:
+    wall_fixes.append('fix zwalls all ' + wall_physics + ' zplane 0.0 ' + str(data['params']['z_limit']))
+  
+  output_script_text = output_script_text.replace('WALL_FIXES', '\n'.join(wall_fixes))
+  
+  output_script_text = output_script_text.replace('DELTA_T', str(fm['timestep']))
+  
+  output_script_text = output_script_text.replace('TIMESTEP_LIMIT', str(timestep_limit))
+  
+  output_script_text = output_script_text.replace('DUMP_FILENAME', _dump_filename)
+  
+  # TODO restart file, when we've written a restart script template.
   
   return output_script_text
 
