@@ -1,5 +1,5 @@
 import pydem as d
-import pydem.lammps as l
+import pydem.dem as l
 import pprint, random, math
 
 def rand_float(minimum, maximum):
@@ -31,19 +31,21 @@ def generate_elements(min_radius=0.5, max_radius=1.0, y_line=6.0, x_limit=7.0, g
 
   return new_elements
 
-limits = [20.0, 20.0]
+limits = [100.0, 100.0]
 
 elements = generate_elements(y_line=13.0, x_limit=limits[0])
+
+print elements[0].to_json()
 
 data = {'elements':elements}
 
 fm = {
   'type' : d.ForceModelType.HOOKIAN,
-  'resitiution_coefficient' : 0.5,
+  'resitiution_coefficient' : 0.2,
   'max_overlap_ratio' : 0.1,
   'collision_time_ratio' : 30.0,
   'include_tangential_forces' : True,
-  'container_height' : 100.0
+  'container_height' : limits[1]
 }
 
 data['params'] = d.SimulationParams({
@@ -53,6 +55,6 @@ data['params'] = d.SimulationParams({
 }, fm, data)
 
 
-print l.generate_script(data, 1000)
+print l.run_simulation(data)
 
 

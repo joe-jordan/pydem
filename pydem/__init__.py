@@ -45,8 +45,6 @@ class ForceModelType:
   HOOKIAN = 1
   HERZIAN = 2
 
-import lammps
-
 class ForceModel(JsonContainer):
   """A class encapsulating the hookian and hertzian intergranular force models.
      to build, specify the constants directly, or give proxies like the maximum
@@ -157,7 +155,7 @@ class ForceModel(JsonContainer):
     
     boundary_constants['damping_norm'] = math.sqrt(
       (
-        4.0 * boundary_constants['spring_constant_norm'] * max_mass
+        4.0 * boundary_constants['spring_constant_norm'] * min_mass
       ) / (
         1.0 + ((math.log(params['resitiution_coefficient']))/(2.0 * math.pi)) ** 2
       )
@@ -232,6 +230,10 @@ class SimulationParams(JsonContainer):
       except KeyError:
         raise InvalidArgumentError("Compulsory property '" + key + "' was not specified.")
   
+  def to_json(self):
+    j = self.json.copy()
+    j['force_model'] = j['force_model'].to_json()
+    return j
 
 
 class InvalidArgumentError(ValueError):
@@ -261,6 +263,80 @@ class Particle(JsonContainer):
       self.json['style'] = 'sphere'
     self.validate()
   
+  def init_lammps(self, params, write_properties=False):
+    self.lammps = params
+    if write_properties:
+      self.overwrite_lammps()
+  
+  def overwrite_lammps(self):
+    dimension = len(self.json['position'])
+    
+    # compulsory keys:
+    
+    self.lammps['x'][0] = self.json['position'][0]
+    self.lammps['x'][1] = self.json['position'][1]
+    if dimension > 2:
+      self.lammps['x'][2] = self.json['position'][2]
+    
+    self.lammps['rmass'] = self.json['mass']
+    self.lammps['radius'] = self.json['radius']
+    
+    # optional keys, surrounded by try/excepts:
+    
+    try:
+      self.lammps['v'][0] = self.json['velocity'][0]
+      self.lammps['v'][1] = self.json['velocity'][1]
+      if dimension > 2:
+        self.lammps['v'][2] = self.json['velocity'][2]
+    except KeyError:
+      pass
+    
+    try:
+      if dimension == 2:
+        self.lammps['omega'][2] = self.json['angular_velocity']
+      else:
+        self.lammps['omega'][0] = self.json['angular_velocity'][0]
+        self.lammps['omega'][1] = self.json['angular_velocity'][1]
+        self.lammps['omega'][2] = self.json['angular_velocity'][2]
+    except KeyError:
+      pass
+  
+  def update_from_lammps(self):
+    dimension = len(self.json['position'])
+    
+    self.json['position'] = [
+      self.lammps['x'][0],
+      self.lammps['x'][1]
+    ]
+    if dimension > 2:
+      self.json['position'].append(self.lammps['x'][2])
+    
+    self.json['velocity'] = [
+      self.lammps['v'][0],
+      self.lammps['v'][1]
+    ]
+    if dimension > 2:
+      self.json['velocity'].append(self.lammps['v'][2])
+    
+    self.json['force'] = [
+      self.lammps['f'][0],
+      self.lammps['f'][1]
+    ]
+    if dimension > 2:
+      self.json['force'].append(self.lammps['f'][2])
+    
+    self.json['mass'] = self.lammps['rmass']
+    self.json['radius'] = self.lammps['radius'] 
+    
+    if dimension == 2:
+      self.json['angular_velocity'] = self.lammps['omega'][2]
+    else:
+      self.json['angular_velocity'] = [
+        self.lammps['omega'][0],
+        self.lammps['omega'][1],
+        self.lammps['omega'][2]
+      ]
+  
   def validate(self):
     for key in Particle.compulsory_keys:
       try:
@@ -270,6 +346,7 @@ class Particle(JsonContainer):
     
 
 def open_system(filename):
+  """opens a gzipped json file, in the format created by this library."""
   json_file = gzip.open(filename, 'rb')
   json_string = json_file.read()
   if json_string.find('\'') != -1:
@@ -283,6 +360,9 @@ def open_system(filename):
   return data
 
 def save_system(data, filename):
+  """saves the system in 'data' to a gzipped json format that can be
+  restored using open_system.
+  """
   output_data = {
     'params' : data['params'].to_json(),
     'elements' : [e.to_json() for e in data['elements']]

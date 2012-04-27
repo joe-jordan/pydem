@@ -1,10 +1,9 @@
 # 
-# pydem/lammps.py : lammps interface
+# pydem/dem.py : lammps interface
 #
-# V1 - VERY PRIMITIVE.
-#   This library interacts with lammps using temp files for
-#   communication. It is anticipated that more advanced python
-#   bindings will make this obsolete, hopefully quickly!
+# V2 - a wrapper around the lammps C interface.
+#   This library interacts with lammps using the lammps C interface at
+#   lammps/python/lammps.py and lammps/src/library.h or cpp .
 # 
 # Copyright (C) 2012  Joe Jordan
 # <joe.jordan@imperial.ac.uk>
@@ -24,9 +23,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
+#
+# NOTE: results received from the lammps lib calls are strange c-pointer
+# objects - even if they are "arrays", they are NOT python lists.
+# DO NOTE ITERATE using 'for item in lammps.extract_atom('x',..)
+# it will loop infinitely over two pointer things. always use x[0].
+#
 
-import tempfile, os, os.path, shutil
+import os, os.path, shutil
 from pydem import ForceModelType, vector_length
+import lammps
 
 _script_filename = 'script.lammps'
 _stdout_filename = 'stdout.out'
@@ -35,7 +41,7 @@ _binary_restart_filename = 'output.bin'
 
 _script_template = """
 atom_style ATOMSTYLE
-units lj
+units si
 
 communicate single vel yes
 
@@ -43,7 +49,7 @@ dimension DIMENSION
 
 boundary BOUNDARY
 
-lattice sq 0.1
+lattice sq 1.0
 
 region outer_box block SIMULATION_ZONE
 
@@ -66,7 +72,7 @@ WALL_FIXES
 
 timestep DELTA_T
 
-dump data all custom TIMESTEP_LIMIT DUMP_FILENAME id radius mass x y z vx vy vz omegax omegay omegaz
+dump data all custom 100 DUMP_FILENAME id radius mass x y z vx vy vz omegax omegay omegaz
 
 run TIMESTEP_LIMIT
 
@@ -82,14 +88,17 @@ group ID id ID
 _setup_template = """set atom ID mass MASS
 set atom ID diameter DIAM
 velocity ID set VX VY VZ
+group ID delete
 """
 
+# broken.
 _setup_angular_template = """set atom ID mass MASS
 set atom ID diameter DIAM
 velocity ID set LX LY LZ rot yes
 velocity ID set VX VY VZ
 """
 
+# TODO.
 _setup_aspherical_angular_template = """set atom ID mass MASS
 set atom ID diameter DIAM
 set atom ID angmom LX LY LZ
@@ -107,31 +116,74 @@ _spring_types = {
 
 _wall_type = "wall/gran"
 
-def run_simulation(data, timestep_limit=10000):
-  temp_dir = tempfile.mkdtemp()
+lammps_sphere_properties = [
+  'x',
+  'v',
+  'f',
+  'rmass',
+  'radius',
+  'omega'
+]
+
+lammps_extracts = {
+  'x' : lammps.LMPDPTRPTR,
+  'v' : lammps.LMPDPTRPTR,
+  'f' : lammps.LMPDPTRPTR,
+  'rmass' : lammps.LMPDPTR,
+  'radius' : lammps.LMPDPTR,
+  'omega' : lammps.LMPDPTRPTR,
+  # angmom and torque are for ellipsoids. (TODO shape and quat)
+  'angmom' : lammps.LMPDPTRPTR,
+  'torque' : lammps.LMPDPTRPTR
+}
+
+def run_simulation(data, lammps_instance=None, timestep_limit=10000):
   lammps_script = generate_script(data, timestep_limit)
   
-  f = open(os.path.join(temp_dir, _script_filename), 'w')
-  f.write(output_script_text)
-  f.close()
+  commands = [line for line in lammps_script.split("\n") if line != ""]
   
-  _old_path = os.getcwd()
+  if (lammps_instance == None):
+    lammps_instance = lammps.lammps()
   
-  os.chdir(temp_dir)
+  for c in commands:
+    print c
+    lammps_instance.command(c)
   
-  os.system("lammps < %s > %s" % _script_filename, _stdout_filename)
-  dump_lines = open(_dump_filename, 'r').readlines()
-  new_data = lammps.parse_dump(dump_lines)
+  init_python_from_lammps(data, lammps_instance)
   
-  os.chdir(_old_path)
-  shutil.rmtree(_temp_dir)
+  print "from extract_atom:"
+  for req in ['x', 'v', 'omega']:
+    x = lammps_instance.extract_atom(req, lammps.LMPDPTRPTR)
+    
+    print req, x[0][0], x[0][1], x[0][2], x[1][0], x[1][1], x[1][2]
   
-  return new_data
+  update_python_from_lammps(data, lammps_instance)
+  
+  #TODO tidy up lammps instance.
+
+def init_python_from_lammps(data, lammps_instance):
+  vars = {}
+  for var in lammps_sphere_properties:
+    vars[var] = lammps_instance.extract_atom(var, lammps_extracts[var])
+  for i, e in enumerate(data['elements']):
+    params = {}
+    for key, value in vars.items():
+      try:
+        params[key] = value[i]
+      except:
+        print "error from key", key
+        raise
+    e.init_lammps(params)
+
+def update_python_from_lammps(data, lammps_instance):
+  for e in data['elements']:
+    e.update_from_lammps()
 
 def generate_script(data, timestep_limit):
   output_script_text = _script_template
   
   styles = set([e['style'] for e in data['elements']])
+  print styles
   styles_str = styles.pop() if len(styles) == 1 else 'hybrid ' + ' '.join(styles)
   
   output_script_text = output_script_text.replace('ATOMSTYLE', styles_str)
@@ -176,18 +228,20 @@ def generate_script(data, timestep_limit):
       smap['VZ'] = '0.0'
     
     local_setup_template = _setup_template
-    if data['params']['force_model']['include_tangential_forces']:
-      local_setup_template = _setup_angular_template
-      try:
-        smap['LX'] = str(e['angular_velocity'][0]) if data['params']['dimension'] > 2 else '0.0'
-        smap['LY'] = str(e['angular_velocity'][1]) if data['params']['dimension'] > 2 else '0.0'
-        smap['LZ'] = str(e['angular_velocity'][2]) if data['params']['dimension'] > 2 else str(e['angular_velocity'])
-      except KeyError:
-        smap['LX'] = '0.0'
-        smap['LY'] = '0.0'
-        smap['LZ'] = '0.0'
+    # TODO - allow initialisation of angular speed, requires lammps extension.
+    #if data['params']['force_model']['include_tangential_forces']:
+    #  local_setup_template = _setup_angular_template
+    #  try:
+    #    smap['LX'] = str(e['angular_velocity'][0]) if data['params']['dimension'] > 2 else '0.0'
+    #    smap['LY'] = str(e['angular_velocity'][1]) if data['params']['dimension'] > 2 else '0.0'
+    #    smap['LZ'] = str(e['angular_velocity'][2]) if data['params']['dimension'] > 2 else str(e['angular_velocity'])
+    #  except KeyError:
+    #    smap['LX'] = '0.0'
+    #    smap['LY'] = '0.0'
+    #    smap['LZ'] = '0.0'
     
-    setup_statements.append(_string_sub(local_setup_template, smap))
+    # watch out!
+    create_statements.append(_string_sub(local_setup_template, smap))
   
   output_script_text = output_script_text.replace('CREATE_STATEMENTS', '\n'.join(create_statements))
   

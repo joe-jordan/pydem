@@ -21,7 +21,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
-import sys, pydem, pydem.lammps as lammps
+import sys, pydem, pydem.dem as l
 
 def print_usage():
   print """
@@ -44,7 +44,7 @@ if __name__ == "__main__":
   
   data = pydem.open_system(sys.argv[1])
   
-  new_data = lammps.run_simulation(
+  new_data = l.run_simulation(
     data,
     endpoint=pydem.Endpoint.EQUILIBRIUM
   )
