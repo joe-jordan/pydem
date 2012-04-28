@@ -263,10 +263,12 @@ class Particle(JsonContainer):
       self.json['style'] = 'sphere'
     self.validate()
   
-  def init_lammps(self, params, write_properties=False):
+  def init_lammps(self, params, write_properties=False, read_properties=False):
     self.lammps = params
     if write_properties:
       self.overwrite_lammps()
+    elif read_properties:
+      self.update_from_lammps()
   
   def overwrite_lammps(self):
     dimension = len(self.json['position'])

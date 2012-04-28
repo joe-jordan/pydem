@@ -30,9 +30,138 @@
 # it will loop infinitely over two pointer things. always use x[0].
 #
 
-import os, os.path, shutil
+import os, os.path, shutil, numbers
 from pydem import ForceModelType, vector_length
 import lammps
+
+class Simulation:
+  """a class to encapsulate the lifetime of a simulation, and marshal the
+  lammps instance and associated ctypes and function calls.
+  """
+  
+  _init_commands = """atom_style ATOMSTYLE
+units si
+
+communicate single vel yes
+
+dimension DIMENSION
+
+boundary BOUNDARY
+
+lattice sq 1.0
+
+region outer_box block SIMULATION_ZONE
+
+create_box NUM_ATOMS outer_box"""
+  
+  def initialise(self, data):
+    """builds a lammps instance, and sets up the simulation based on the data
+provided - called automatically if data is provided to the constructor."""
+    self.data = data
+    
+    if (lammps_instance == None):
+      self.lmp = lammps.lammps()
+    
+    commands = [line for line in self._build_init().split("\n") if line != ""]
+    
+    self._run_commands(commands)
+    
+    # TODO add particles
+    
+    # TODO setup fixes and timestep data
+  
+  def __init__(self, data=None):
+    """data can be provided here, in which case lammps in initialised for use
+immidiately, or instance.initialise(data) can be called later."""
+    self.fixes_applied = False
+    if datas != None:
+      self.initialise(data)
+  
+  def _build_init(self):
+    output_commands = Simulation._init_commands
+    
+    styles = set([e['style'] for e in self.data['elements']])
+    print styles
+    styles_str = styles.pop() if len(styles) == 1 else 'hybrid ' + ' '.join(styles)
+    
+    output_commands = output_commands.replace('ATOMSTYLE', styles_str)
+    output_commands = output_commands.replace('DIMENSION', '%i' % self.data['params']['dimension'])
+    
+    # pydem does not endorse unphysical periodic boundary conditions in 
+    # mechanically equilibriated granular systems.
+    output_commands = output_commands.replace('BOUNDARY', 'f f p' if self.data['params']['dimension'] == 2 else 'f f f')
+    
+    # assume lower bound is zero.
+    zone_str = ' '.join([
+      '-1.0', str(self.data['params']['x_limit'] + 1.0),
+      '-1.0', str(self.data['params']['y_limit'] + 1.0),
+      '-1.0', str(self.data['params']['z_limit'] + 1.0) if self.data['params']['dimension'] > 2 else '1.0'
+    ])
+    
+    output_commands = output_commands.replace('SIMULATION_ZONE', zone_str)
+    output_commands = output_commands.replace('NUM_ATOMS', str(len(self.data['elements'])))
+    
+    return output_commands
+  
+  def add_particles(self, new_particles):
+    """use this to add particles to lammps safely - do not simply add to
+data['elements'], as lammps will not be notified."""
+    pass
+  
+  def remove_particles(self, defunct_particles):
+    """use this to safely remove particles from the simulation. The particles
+will be automatically removed from data['elements'] after they are removed from
+lammps."""
+    pass
+  
+  def particles_modified(self):
+    """always call this method when elements' python properties have been
+changed that require persisting to lammps, e.g. when position or velocity are
+manually assigned. This function is automatically called by the add and remove
+functions."""
+    pass
+  
+  def constants_modified(self):
+    """always call this method when simulation params' python properties have
+been changed that require persisting to lammps, e.g. when the force constants
+or damping have been manually assigned."""
+    if self.fixes_applied:
+      self._remove_fixes()
+      self.fixes_applied = False
+    
+    commands = self._generate_fixes()
+    
+    self._run_commands(commands)
+    
+    self.fixes_applied = True
+  
+  def _remove_fixes(self):
+    pass
+  
+  def _generate_fixes(self):
+    pass
+  
+  def run_time(self, how_long):
+    """when a simulation is ready to run timesteps, call this function with the
+number of timesteps to proceed by. You can also provide the number of 
+in-universe seconds to run for, and this will be translated to timesteps for
+you, although note that this MUST be a float:
+  instance.run_time(5) => run 5 timesteps,
+  instance.run_time(5.0) => run for 5 in-universe seconds."""
+    if not isinstance(how_long, numbers.Integral):
+      how_long = int(how_long / self.data['params']['force_model']['timestep'])
+    
+    if how_long <= 0:
+      return
+    
+    self.lmp.command('run ' + str(how_long))
+  
+  def _run_commands(self, commands):
+    for c in commands:
+      self.lmp.command(c)
+
+
+
 
 _script_filename = 'script.lammps'
 _stdout_filename = 'stdout.out'
