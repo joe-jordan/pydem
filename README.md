@@ -13,7 +13,7 @@ All versions will operate in approximately the following way:
 * allow you to `import` a normal python module
 * allow you to initialise data (like interactions, particle positions, boundary conditions, etc) *in python*.
 * allow you to run the simulation, and retrieve the data in memory afterwards,
-* allow you to save and restore the particles in compressed form.
+* allow you to save and restore the particles in compressed form. *(support for lammps binary restart files will be added, too.)*
 
 *in fact, it looks like the python/C++ data transfer will be encapsulated within ordinary operations on the interface, with fallback to manual controls if you're feeling technical.*
 
@@ -35,4 +35,4 @@ Since the ultimate aim is to avoid the domain speific LAMMPS language, this vers
 **Version 2** will use a simple C interface combined with Cython to expose a well defined set of functionality for passing data between Python and C++ land.
 It will also provide an interface for using LAMMPS `compute` functionality, although the results of computes will be passed all the way out to Python for processing and mid-simulation logic, so that one can use rich language features to `if` and `elif`, loop and `raise`, `map` and `reduce`. Note that you'll still be able to do this in version 1, it'll just be a lot slower, and you'll have to implement your own `compute`s.
 
-**Version 3** might head over to LAMMPS' cousin LIGGGHTS and expose some of the extra granular features there to similar Cythonic treatment.
+**Version 3** will support aspherical particles in a similar way to LIGGGHTS - i.e. via coupled/rigid sets of spheres.
