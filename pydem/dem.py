@@ -39,7 +39,7 @@ class Simulation:
   lammps instance and associated ctypes and function calls.
   """
   
-  _init_commands = """atom_style ATOMSTYLE
+  _init_commands = """atom_style sphere
 units si
 
 communicate single vel yes
@@ -52,7 +52,7 @@ lattice sq 1.0
 
 region outer_box block SIMULATION_ZONE
 
-create_box NUM_ATOM_TYPES outer_box"""
+create_box 1 outer_box"""
   
   # NOTE - we may wish to extend lammps to support 'blank' atoms through the
   # create_atom command, to save all the calls to the random libs.
@@ -69,27 +69,13 @@ fix grav all gravity GRAVITY_SIZE vector GRAVITY_X GRAVITY_Y GRAVITY_Z
 
 WALL_FIXES"""
   
-  _lammps_properties = {
-    'sphere' : [
-      'x',
-      'v',
-      'f',
-      'rmass',
-      'radius',
-      'omega'
-    ]
-  }
-  
   _lammps_extracts = {
     'x' : lammps.LMPDPTRPTR,
     'v' : lammps.LMPDPTRPTR,
     'f' : lammps.LMPDPTRPTR,
     'rmass' : lammps.LMPDPTR,
     'radius' : lammps.LMPDPTR,
-    'omega' : lammps.LMPDPTRPTR,
-    # angmom and torque are for ellipsoids. (TODO shape and quat)
-    'angmom' : lammps.LMPDPTRPTR,
-    'torque' : lammps.LMPDPTRPTR
+    'omega' : lammps.LMPDPTRPTR
   }
   
   def initialise(self, data):
@@ -118,10 +104,6 @@ immidiately, or instance.initialise(data) can be called later."""
   def _build_init(self):
     output_commands = Simulation._init_commands
     
-    styles = set([e['style'] for e in self.data['elements']])
-    print styles
-    styles_str = styles.pop() if len(styles) == 1 else 'hybrid ' + ' '.join(styles)
-    
     output_commands = output_commands.replace('ATOMSTYLE', styles_str)
     output_commands = output_commands.replace('DIMENSION', '%i' % self.data['params']['dimension'])
     
@@ -137,20 +119,17 @@ immidiately, or instance.initialise(data) can be called later."""
     ])
     
     output_commands = output_commands.replace('SIMULATION_ZONE', zone_str)
-    # TODO - find out what to use types for.
-    output_commands = output_commands.replace('NUM_ATOM_TYPES', str(len(styles)))
     
     return output_commands
   
   def _sync_pointers(self, particles, start_index=0, write_properties=False, read_properties=False):
-    type_vars = {}
-    for type, vars in Simulation._lammps_properties.items():
-      type_vars[type] = {}
-      for var in vars:
-        type_vars[type][var] = lammps_instance.extract_atom(var, lammps_extracts[var])
+    # TODO make particles store their lammps ID, so when particles are removed 
+    # the IDs here need not be a contiguous block.
+    vars = {}
+    for var, ptrtype in Simulation._lammps_extracts.items():
+      vars[var] = lammps_instance.extract_atom(var, ptrtype)
     for i, e in enumerate(particles):
       params = {}
-      vars = type_vars[e['style']]
       for key, value in vars.items():
         try:
           params[key] = value[start_index + i]
@@ -166,8 +145,6 @@ instance.data['elements'], as lammps will not be notified."""
       Simulation._create_atoms_template.replace('NUM_ATOMS', str(len(new_particles)))
     ])
     
-    # TODO set up which atom is which style, in hybrid cases.
-    
     self._sync_pointers(new_particles, start_index=len(self.data['elements']), write_properties=True)
   
   def remove_particles(self, defunct_particles):
@@ -181,7 +158,8 @@ lammps."""
 changed that require persisting to lammps, e.g. when position or velocity are
 manually assigned. This function is automatically called by the add and remove
 functions."""
-    pass
+    self._sync_pointers(self.data['elements'], write_properties=True)
+      
   
   def constants_modified(self):
     """always call this method when simulation params' python properties have
