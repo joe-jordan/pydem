@@ -52,7 +52,45 @@ lattice sq 1.0
 
 region outer_box block SIMULATION_ZONE
 
-create_box NUM_ATOMS outer_box"""
+create_box NUM_ATOM_TYPES outer_box"""
+  
+  # NOTE - we may wish to extend lammps to support 'blank' atoms through the
+  # create_atom command, to save all the calls to the random libs.
+  _create_atoms_template = "create_atoms 1 random NUM_ATOMS 1 NULL"
+  
+  _fixes_template = """pair_style PARTICLE_PARTICLE_INTERACTIONS
+pair_coeff * *
+
+fix update_positions all nve/sphere
+
+2D_FIX
+
+fix grav all gravity GRAVITY_SIZE vector GRAVITY_X GRAVITY_Y GRAVITY_Z
+
+WALL_FIXES"""
+  
+  _lammps_properties = {
+    'sphere' : [
+      'x',
+      'v',
+      'f',
+      'rmass',
+      'radius',
+      'omega'
+    ]
+  }
+  
+  _lammps_extracts = {
+    'x' : lammps.LMPDPTRPTR,
+    'v' : lammps.LMPDPTRPTR,
+    'f' : lammps.LMPDPTRPTR,
+    'rmass' : lammps.LMPDPTR,
+    'radius' : lammps.LMPDPTR,
+    'omega' : lammps.LMPDPTRPTR,
+    # angmom and torque are for ellipsoids. (TODO shape and quat)
+    'angmom' : lammps.LMPDPTRPTR,
+    'torque' : lammps.LMPDPTRPTR
+  }
   
   def initialise(self, data):
     """builds a lammps instance, and sets up the simulation based on the data
@@ -74,7 +112,7 @@ provided - called automatically if data is provided to the constructor."""
     """data can be provided here, in which case lammps in initialised for use
 immidiately, or instance.initialise(data) can be called later."""
     self.fixes_applied = False
-    if datas != None:
+    if data != None:
       self.initialise(data)
   
   def _build_init(self):
@@ -99,14 +137,38 @@ immidiately, or instance.initialise(data) can be called later."""
     ])
     
     output_commands = output_commands.replace('SIMULATION_ZONE', zone_str)
-    output_commands = output_commands.replace('NUM_ATOMS', str(len(self.data['elements'])))
+    # TODO - find out what to use types for.
+    output_commands = output_commands.replace('NUM_ATOM_TYPES', str(len(styles)))
     
     return output_commands
   
+  def _sync_pointers(self, particles, start_index=0, write_properties=False, read_properties=False):
+    type_vars = {}
+    for type, vars in Simulation._lammps_properties.items():
+      type_vars[type] = {}
+      for var in vars:
+        type_vars[type][var] = lammps_instance.extract_atom(var, lammps_extracts[var])
+    for i, e in enumerate(particles):
+      params = {}
+      vars = type_vars[e['style']]
+      for key, value in vars.items():
+        try:
+          params[key] = value[start_index + i]
+        except:
+          print "error from key", key
+          raise
+      e.init_lammps(params, write_properties=write_properties, read_properties=read_properties)
+  
   def add_particles(self, new_particles):
     """use this to add particles to lammps safely - do not simply add to
-data['elements'], as lammps will not be notified."""
-    pass
+instance.data['elements'], as lammps will not be notified."""
+    self._run_commands([
+      Simulation._create_atoms_template.replace('NUM_ATOMS', str(len(new_particles)))
+    ])
+    
+    # TODO set up which atom is which style, in hybrid cases.
+    
+    self._sync_pointers(new_particles, start_index=len(self.data['elements']), write_properties=True)
   
   def remove_particles(self, defunct_particles):
     """use this to safely remove particles from the simulation. The particles
@@ -155,6 +217,16 @@ you, although note that this MUST be a float:
       return
     
     self.lmp.command('run ' + str(how_long))
+    
+    self._update_particles_from_lammps()
+  
+  def _update_particles_from_lammps(self):
+    for e in self.data['elements']:
+      e.update_from_lammps()
+  
+  def _update_lammps_from_python(self):
+    for e in self.data['elements']:
+      e.overwrite_lammps()
   
   def _run_commands(self, commands):
     for c in commands:
@@ -182,7 +254,7 @@ lattice sq 1.0
 
 region outer_box block SIMULATION_ZONE
 
-create_box NUM_ATOMS outer_box
+create_box NUM_ATOM_TYPES outer_box
 
 CREATE_STATEMENTS
 
