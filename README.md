@@ -24,6 +24,8 @@ We are currently at VERSION 0 - that is, version 1 isn't finished yet. Version 0
 
 **UPDATE** In fact, we're skipping version one and jumping straight to a sort of version 2. We are still generating a lammps script, but we're pushing it through a line at a time into the programmatic command interface, and we're setting atom data using pointers passed out of the C++, rather than either lammps commands or data files.
 
+**PROGRESS REPORT** Version 2 is nearly ready - most features are implemented - next job to debug a few physics issues using a visualiser which uses pygame. This will not be required in the final build - so no broken imports.
+
 Future Versions
 ---------------
 
