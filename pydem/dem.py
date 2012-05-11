@@ -51,12 +51,15 @@ boundary BOUNDARY
 lattice sq 1.0
 
 region outer_box block SIMULATION_ZONE
+region random_box block RANDOM_ZONE
 
-create_box 1 outer_box"""
+create_box MAX_ATOM_GUESS outer_box"""
   
   # NOTE - we may wish to extend lammps to support 'blank' atoms through the
   # create_atom command, to save all the calls to the random libs.
-  _create_atoms_template = "create_atoms 1 random NUM_ATOMS 1 NULL"
+  _create_atoms_template = "create_atoms 1 random NUM_ATOMS 1 random_box"
+  
+  _interaction_template = "SPRING_TYPE K_N K_T ETA_N ETA_T ROTATION_RATIO INCLUDE_TANGENTIAL_FRICTION"
   
   _fixes_template = """pair_style PARTICLE_PARTICLE_INTERACTIONS
 pair_coeff * *
@@ -67,7 +70,11 @@ fix update_positions all nve/sphere
 
 fix grav all gravity GRAVITY_SIZE vector GRAVITY_X GRAVITY_Y GRAVITY_Z
 
-WALL_FIXES"""
+WALL_FIXES
+
+timestep DELTA_T"""
+  
+  _2d_fix = "fix enforce_planar all enforce2d"
   
   _lammps_extracts = {
     'x' : lammps.LMPDPTRPTR,
@@ -78,47 +85,71 @@ WALL_FIXES"""
     'omega' : lammps.LMPDPTRPTR
   }
   
+  def commands_from_script(self, script):
+    return [line for line in script.split("\n") if line != ""]
+  
   def initialise(self, data):
     """builds a lammps instance, and sets up the simulation based on the data
 provided - called automatically if data is provided to the constructor."""
     self.data = data
     
-    if (lammps_instance == None):
+    if (self.lmp == None):
       self.lmp = lammps.lammps()
     
-    commands = [line for line in self._build_init().split("\n") if line != ""]
+    commands = self.commands_from_script(self._build_init())
     
     self._run_commands(commands)
     
-    # TODO add particles
+    self.add_particles(self.data['elements'])
     
-    # TODO setup fixes and timestep data
+    self.constants_modified()
   
   def __init__(self, data=None):
     """data can be provided here, in which case lammps in initialised for use
 immidiately, or instance.initialise(data) can be called later."""
     self.fixes_applied = False
+    self.atoms_created = 0
+    self.lmp = None
     if data != None:
       self.initialise(data)
   
   def _build_init(self):
     output_commands = Simulation._init_commands
     
-    output_commands = output_commands.replace('ATOMSTYLE', styles_str)
-    output_commands = output_commands.replace('DIMENSION', '%i' % self.data['params']['dimension'])
+    p = self.data['params']
+    
+    # there is no 'atom_style' variable to replace, since we assume all spheres
+    output_commands = output_commands.replace('DIMENSION', str(p['dimension']))
     
     # pydem does not endorse unphysical periodic boundary conditions in 
     # mechanically equilibriated granular systems.
-    output_commands = output_commands.replace('BOUNDARY', 'f f p' if self.data['params']['dimension'] == 2 else 'f f f')
+    output_commands = output_commands.replace('BOUNDARY', 'f f p' if p['dimension'] == 2 else 'f f f')
+    
+    limits = [p['x_limit'], p['y_limit']]
+    if p['dimension'] > 2:
+      limits.append(p['z_limit'])
+    delta = max(limits) * 0.05
+    
+    lower = str(-1.0 * delta)
     
     # assume lower bound is zero.
     zone_str = ' '.join([
-      '-1.0', str(self.data['params']['x_limit'] + 1.0),
-      '-1.0', str(self.data['params']['y_limit'] + 1.0),
-      '-1.0', str(self.data['params']['z_limit'] + 1.0) if self.data['params']['dimension'] > 2 else '1.0'
+      lower, str(p['x_limit'] + delta),
+      lower, str(p['y_limit'] + delta),
+      lower, str(p['z_limit'] + delta) if p['dimension'] > 2 else str(delta)
     ])
     
     output_commands = output_commands.replace('SIMULATION_ZONE', zone_str)
+    
+    random_zone_str = ' '.join([
+      str(delta), str(p['x_limit'] - delta),
+      str(delta), str(p['y_limit'] - delta),
+      str(delta) if p['dimension'] > 2 else lower, str(p['z_limit'] - delta) if p['dimension'] > 2 else str(delta)
+    ])
+    
+    output_commands = output_commands.replace('RANDOM_ZONE', random_zone_str)
+    
+    output_commands = output_commands.replace('MAX_ATOM_GUESS', str(p['max_particles_guess']))
     
     return output_commands
   
@@ -127,7 +158,7 @@ immidiately, or instance.initialise(data) can be called later."""
     # the IDs here need not be a contiguous block.
     vars = {}
     for var, ptrtype in Simulation._lammps_extracts.items():
-      vars[var] = lammps_instance.extract_atom(var, ptrtype)
+      vars[var] = self.lmp.extract_atom(var, ptrtype)
     for i, e in enumerate(particles):
       params = {}
       for key, value in vars.items():
@@ -145,13 +176,17 @@ instance.data['elements'], as lammps will not be notified."""
       Simulation._create_atoms_template.replace('NUM_ATOMS', str(len(new_particles)))
     ])
     
-    self._sync_pointers(new_particles, start_index=len(self.data['elements']), write_properties=True)
+    self._sync_pointers(new_particles, start_index=self.atoms_created, write_properties=True)
+    
+    self.atoms_created += len(new_particles)
+    
+    self.data['elements'].extend(new_particles)
   
   def remove_particles(self, defunct_particles):
     """use this to safely remove particles from the simulation. The particles
 will be automatically removed from data['elements'] after they are removed from
 lammps."""
-    pass
+    raise Exception("warning, remove_particles not yet implemented.")
   
   def particles_modified(self):
     """always call this method when elements' python properties have been
@@ -169,7 +204,7 @@ or damping have been manually assigned."""
       self._remove_fixes()
       self.fixes_applied = False
     
-    commands = self._generate_fixes()
+    commands = self.commands_from_script(self._generate_fixes())
     
     self._run_commands(commands)
     
@@ -179,7 +214,55 @@ or damping have been manually assigned."""
     pass
   
   def _generate_fixes(self):
-    pass
+    fm = self.data['params']['force_model']
+    
+    script = Simulation._fixes_template.replace('PARTICLE_PARTICLE_INTERACTIONS',
+      _string_sub(Simulation._interaction_template, {
+        'SPRING_TYPE' : _spring_types[fm['type']],
+        'K_N' : str(fm['pairwise_constants']['spring_constant_norm']),
+        'K_T' : str(fm['pairwise_constants']['spring_constant_tan']) if fm['include_tangential_forces'] else 'NULL',
+        'ETA_N' : str(fm['pairwise_constants']['damping_norm']),
+        'ETA_T' : str(fm['pairwise_constants']['damping_tan']) if fm['include_tangential_forces'] else 'NULL',
+        'ROTATION_RATIO' : str(
+          fm['pairwise_constants']['spring_constant_tan'] / fm['pairwise_constants']['spring_constant_norm']
+        ) if fm['include_tangential_forces'] else '0.5',
+        'INCLUDE_TANGENTIAL_FRICTION' : '1' if fm['include_tangential_forces'] else '0'
+      }))
+    
+    d2fix = ""
+    if self.data['params']['dimension'] == 2:
+      d2fix = Simulation._2d_fix
+    script = script.replace('2D_FIX', d2fix)
+    
+    script = script.replace(
+      'GRAVITY_SIZE', str(vector_length(fm['gravity'])) ).replace(
+      'GRAVITY_X', str(fm['gravity'][0]) ).replace(
+      'GRAVITY_Y', str(fm['gravity'][1]) ).replace(
+      'GRAVITY_Z', str(fm['gravity'][2]) if self.data['params']['dimension'] == 3 else '0.0')
+    
+    wall_physics = _string_sub(Simulation._interaction_template, {
+      'SPRING_TYPE' : "wall/gran",
+      'K_N' : str(fm['boundary_constants']['spring_constant_norm']),
+      'K_T' : str(fm['boundary_constants']['spring_constant_tan']) if fm['include_tangential_forces'] else 'NULL',
+      'ETA_N' : str(fm['boundary_constants']['damping_norm']),
+      'ETA_T' : str(fm['boundary_constants']['damping_tan']) if fm['include_tangential_forces'] else 'NULL',
+      'ROTATION_RATIO' : str(
+        fm['boundary_constants']['spring_constant_tan'] / fm['boundary_constants']['spring_constant_norm']
+      ) if fm['include_tangential_forces'] else '0.5',
+      'INCLUDE_TANGENTIAL_FRICTION' : '1' if fm['include_tangential_forces'] else '0'
+    })
+    
+    wall_fixes = [
+      'fix xwalls all ' + wall_physics + ' xplane 0.0 ' + str(self.data['params']['x_limit']),
+      'fix ywalls all ' + wall_physics + ' yplane 0.0 ' + str(self.data['params']['y_limit'])
+    ]
+    
+    if self.data['params']['dimension'] == 3:
+      wall_fixes.append('fix zwalls all ' + wall_physics + ' zplane 0.0 ' + str(self.data['params']['z_limit']))
+    
+    script = script.replace('WALL_FIXES', '\n'.join(wall_fixes))
+    
+    return script.replace('DELTA_T', str(fm['timestep']))
   
   def run_time(self, how_long):
     """when a simulation is ready to run timesteps, call this function with the
@@ -208,6 +291,7 @@ you, although note that this MUST be a float:
   
   def _run_commands(self, commands):
     for c in commands:
+      print "running commend:", c
       self.lmp.command(c)
 
 

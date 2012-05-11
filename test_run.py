@@ -31,11 +31,21 @@ def generate_elements(min_radius=0.5, max_radius=1.0, y_line=6.0, x_limit=7.0, g
 
   return new_elements
 
+def total_energy(data):
+  # potential (from heights):
+  pe = sum([e['position'][1]*e['mass'] for e in data['elements']]) * abs(data['params']['force_model']['gravity'][1])
+  
+  # TODO potential (from overlaps) (requires contact detection to be efficient for large systems...):
+  
+  # kinetic:
+  ke = sum([sum([v_i ** 2 for v_i in e['velocity']]) * e['mass'] for e in data['elements']]) * 0.5
+  # TODO rotational kinetic
+  
+  return ke + pe
+
 limits = [100.0, 100.0]
 
 elements = generate_elements(y_line=13.0, x_limit=limits[0])
-
-print elements[0].to_json()
 
 data = {'elements':elements}
 
@@ -51,10 +61,33 @@ fm = {
 data['params'] = d.SimulationParams({
   'dimension' : 2,
   'x_limit' : limits[0],
-  'y_limit' : limits[1]
+  'y_limit' : limits[1],
+  'max_particles_guess' : 200
 }, fm, data)
 
 
-print l.run_simulation(data)
+s = l.Simulation(data)
 
+s.run_time(5.0)
 
+print "ran successfully, now adding more elements"
+
+print "energy before adding new elements:", total_energy(data)
+
+s.add_particles(generate_elements(y_line=max([e['position'][1] for e in data['elements']])+3.0, x_limit=limits[0]))
+
+print "energy after adding new elements:", total_energy(data)
+
+s.run_time(5.0)
+
+print "ran successfully again, now even more elements"
+
+print "energy before adding new elements:", total_energy(data)
+
+s.add_particles(generate_elements(y_line=max([e['position'][1] for e in data['elements']])+3.0, x_limit=limits[0]))
+
+print "energy after adding new elements:", total_energy(data)
+
+s.run_time(30.0)
+
+print "successfully ran time for even longer, final energy:", total_energy(data)

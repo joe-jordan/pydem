@@ -206,7 +206,8 @@ class SimulationParams(JsonContainer):
     'dimension',
     'x_limit',
     'y_limit',
-    'force_model'
+    'force_model',
+    'max_particles_guess'
   ]
   optional_keys = [
     'z_limit'
@@ -291,7 +292,10 @@ class Particle(JsonContainer):
       if dimension > 2:
         self.lammps['v'][2] = self.json['velocity'][2]
     except KeyError:
-      pass
+      self.json['velocity'] = [0.0, 0.0]
+      if dimension > 2:
+        self.json['velocity'].append(0.0)
+      
     
     try:
       if dimension == 2:
@@ -301,7 +305,9 @@ class Particle(JsonContainer):
         self.lammps['omega'][1] = self.json['angular_velocity'][1]
         self.lammps['omega'][2] = self.json['angular_velocity'][2]
     except KeyError:
-      pass
+      self.json['omega'] = 0.0
+      if dimension > 2:
+        self.json['omega'] = [0.0, 0.0, 0.0]
   
   def update_from_lammps(self):
     dimension = len(self.json['position'])
