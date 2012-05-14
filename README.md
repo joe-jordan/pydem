@@ -6,7 +6,7 @@ PYDEM
 Basics
 ------
 
-This is an as-yet-unstable set of python bindings for LAMMPS, created because I couldn't get the ctypes-based python to work, and because ultimately I want a better interface than that!
+This is a nearly-stable set of python bindings for LAMMPS, built around the ctypes interface in LAMMPS/src/library.h. It currently requires a few small patches to the LAMMPS code, which I will provide as a patch file here until they are accepted into the stable lammps release.
 
 All versions will operate in approximately the following way:
 
@@ -20,11 +20,9 @@ All versions will operate in approximately the following way:
 This Version
 ------------
 
-We are currently at VERSION 0 - that is, version 1 isn't finished yet. Version 0 doesn't work at all. It's just a plan of the interface and some broken methods.
-
-**UPDATE** In fact, we're skipping version one and jumping straight to a sort of version 2. We are still generating a lammps script, but we're pushing it through a line at a time into the programmatic command interface, and we're setting atom data using pointers passed out of the C++, rather than either lammps commands or data files.
-
 **PROGRESS REPORT** Version 2 is nearly ready - most features are implemented - next job to debug a few physics issues using a visualiser which uses pygame. This will not be required in the final build - so no broken imports.
+
+This is now Version 2, in alpha. We can run (and visualise in 2D) a granular simulation of polydisperse spheres, although there are some bugs still to be nailed down (see the TODO file for details).
 
 Future Versions
 ---------------
