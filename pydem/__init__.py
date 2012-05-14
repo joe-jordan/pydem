@@ -281,8 +281,9 @@ class Particle(JsonContainer):
     if dimension > 2:
       self.lammps['x'][2] = self.json['position'][2]
     
-    self.lammps['rmass'] = self.json['mass']
-    self.lammps['radius'] = self.json['radius']
+    # the two PointerFromArray instances:
+    self.lammps['rmass'].assign(self.json['mass'])
+    self.lammps['radius'].assign(self.json['radius'])
     
     # optional keys, surrounded by try/excepts:
     
@@ -305,9 +306,9 @@ class Particle(JsonContainer):
         self.lammps['omega'][1] = self.json['angular_velocity'][1]
         self.lammps['omega'][2] = self.json['angular_velocity'][2]
     except KeyError:
-      self.json['omega'] = 0.0
+      self.json['angular_velocity'] = 0.0
       if dimension > 2:
-        self.json['omega'] = [0.0, 0.0, 0.0]
+        self.json['angular_velocity'] = [0.0, 0.0, 0.0]
   
   def update_from_lammps(self):
     dimension = len(self.json['position'])
@@ -333,8 +334,9 @@ class Particle(JsonContainer):
     if dimension > 2:
       self.json['force'].append(self.lammps['f'][2])
     
-    self.json['mass'] = self.lammps['rmass']
-    self.json['radius'] = self.lammps['radius'] 
+    # the two PointerFromArray instances:
+    self.json['mass'] = self.lammps['rmass'].read()
+    self.json['radius'] = self.lammps['radius'].read()
     
     if dimension == 2:
       self.json['angular_velocity'] = self.lammps['omega'][2]

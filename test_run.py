@@ -44,7 +44,7 @@ def total_energy(data):
   
   return ke + pe
 
-limits = [100.0, 100.0]
+limits = [50.0, 50.0]
 
 elements = generate_elements(y_line=13.0, x_limit=limits[0])
 
@@ -54,7 +54,7 @@ fm = {
   'type' : d.ForceModelType.HOOKIAN,
   'resitiution_coefficient' : 0.2,
   'max_overlap_ratio' : 0.1,
-  'collision_time_ratio' : 30.0,
+  'collision_time_ratio' : 100.0,
   'include_tangential_forces' : True,
   'container_height' : limits[1]
 }
@@ -66,46 +66,35 @@ data['params'] = d.SimulationParams({
   'max_particles_guess' : 200
 }, fm, data)
 
-
 s = l.Simulation(data)
 
-r = v.SimulationRenderer(data, 10)
+r = v.SimulationRenderer(data, 20)
 
-frame_rate = 24.0
+frame_rate = 50.0
 
 frame_time = 1.0 / frame_rate
 
-total_time = 0.0
+run_time = 0.0
 
-while (total_time < 5.0):
+while (run_time < 5.0):
   s.run_time(frame_time)
-  total_time += frame_time
+  run_time += frame_time
   r.render(data)
 
-print "ran successfully, now adding more elements"
-
-print "energy before adding new elements:", total_energy(data)
-
-s.add_particles(generate_elements(y_line=max([e['position'][1] for e in data['elements']])+3.0, x_limit=limits[0]))
-
-print "energy after adding new elements:", total_energy(data)
-
-while (total_time < 10.0):
-  s.run_time(frame_time)
-  total_time += frame_time
-  r.render(data)
-
-print "ran successfully again, now even more elements"
-
-print "energy before adding new elements:", total_energy(data)
-
-s.add_particles(generate_elements(y_line=max([e['position'][1] for e in data['elements']])+3.0, x_limit=limits[0]))
-
-print "energy after adding new elements:", total_energy(data)
-
-while (total_time < 40.0):
-  s.run_time(frame_time)
-  total_time += frame_time
-  r.render(data)
+while len(data['elements']) < 500:
+  print "ran successfully, now adding more elements"
+  
+  print "energy before adding new elements:", total_energy(data)
+  
+  s.add_particles(generate_elements(y_line=max([e['position'][1] for e in data['elements']])+3.0, x_limit=limits[0]))
+  
+  print "energy after adding new elements:", total_energy(data)
+  
+  run_time = 0.0
+  
+  while (run_time < 5.0):
+    s.run_time(frame_time)
+    run_time += frame_time
+    r.render(data)
 
 print "successfully ran time for even longer, final energy:", total_energy(data)

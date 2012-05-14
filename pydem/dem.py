@@ -32,6 +32,7 @@
 
 import os, os.path, shutil, numbers
 from pydem import ForceModelType, vector_length
+from better_ctypes import PointerFromArray
 import lammps
 
 class Simulation:
@@ -169,7 +170,11 @@ immidiately, or instance.initialise(data) can be called later."""
       params = {}
       for key, value in vars.items():
         try:
-          params[key] = value[start_index + i]
+          if Simulation._lammps_extracts[key] == lammps.LMPDPTR:
+            params[key] = PointerFromArray(value, start_index + i)
+          else:
+            # PTRPTRs are fine, as we get a new PTR from the subscript call.
+            params[key] = value[start_index + i]
         except:
           print "error from key", key
           raise

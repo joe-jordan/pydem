@@ -5,8 +5,6 @@
 # <joe.jordan@imperial.ac.uk>
 # <tehwalrus@h2j9k.org>
 # 
-# This file is part of the PyNet Python library (PyNet).
-# 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or (at
@@ -74,14 +72,14 @@ class SimulationRenderer:
     
       # note, y coords on screen are upside down.
       for e in elements:
-        current_radius = e["radius"]
-        current_x = e["position"][0]
-        current_y = e["position"][1]
+        current_radius = int(round(self.pixel_density * e.json["radius"]))
+        current_x = int(round(self.pixel_density * e["position"][0]))
+        current_y = int(round(self.pixel_density * (y_limit - e["position"][1])))
         pygame.gfxdraw.aacircle(
           self.render_surface,
-          int(math.floor(self.pixel_density * current_x)),
-          int(math.floor(self.pixel_density * (y_limit - current_y))),
-          int(math.floor(self.pixel_density * current_radius)),
+          current_x,
+          current_y,
+          current_radius,
           self.black
         )
     
