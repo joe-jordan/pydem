@@ -3,6 +3,12 @@ PYDEM
  
 *python bindings for granular DEM simulations.*
 
+Useful Links:
+-------------
+
+[The LAMMPS simulator project](http://lammps.sandia.gov/)
+[Pygame, an optional dependency for simple visualisations](http://www.pygame.org/)
+
 Basics
 ------
 
