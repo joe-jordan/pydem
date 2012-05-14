@@ -85,6 +85,11 @@ timestep DELTA_T"""
     'omega' : lammps.LMPDPTRPTR
   }
   
+  _spring_types = {
+    ForceModelType.HOOKIAN : 'gran/hooke',
+    ForceModelType.HERZIAN : 'gran/hertz/history'
+  }
+  
   def commands_from_script(self, script):
     return [line for line in script.split("\n") if line != ""]
   
@@ -156,6 +161,7 @@ immidiately, or instance.initialise(data) can be called later."""
   def _sync_pointers(self, particles, start_index=0, write_properties=False, read_properties=False):
     # TODO make particles store their lammps ID, so when particles are removed 
     # the IDs here need not be a contiguous block.
+    print "_sync_pointers called with start_index", start_index
     vars = {}
     for var, ptrtype in Simulation._lammps_extracts.items():
       vars[var] = self.lmp.extract_atom(var, ptrtype)
@@ -218,7 +224,7 @@ or damping have been manually assigned."""
     
     script = Simulation._fixes_template.replace('PARTICLE_PARTICLE_INTERACTIONS',
       _string_sub(Simulation._interaction_template, {
-        'SPRING_TYPE' : _spring_types[fm['type']],
+        'SPRING_TYPE' : Simulation._spring_types[fm['type']],
         'K_N' : str(fm['pairwise_constants']['spring_constant_norm']),
         'K_T' : str(fm['pairwise_constants']['spring_constant_tan']) if fm['include_tangential_forces'] else 'NULL',
         'ETA_N' : str(fm['pairwise_constants']['damping_norm']),

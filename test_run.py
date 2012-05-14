@@ -1,5 +1,6 @@
 import pydem as d
 import pydem.dem as l
+import pydem.simple_visualiser as v
 import pprint, random, math
 
 def rand_float(minimum, maximum):
@@ -68,7 +69,18 @@ data['params'] = d.SimulationParams({
 
 s = l.Simulation(data)
 
-s.run_time(5.0)
+r = v.SimulationRenderer(data, 10)
+
+frame_rate = 24.0
+
+frame_time = 1.0 / frame_rate
+
+total_time = 0.0
+
+while (total_time < 5.0):
+  s.run_time(frame_time)
+  total_time += frame_time
+  r.render(data)
 
 print "ran successfully, now adding more elements"
 
@@ -78,7 +90,10 @@ s.add_particles(generate_elements(y_line=max([e['position'][1] for e in data['el
 
 print "energy after adding new elements:", total_energy(data)
 
-s.run_time(5.0)
+while (total_time < 10.0):
+  s.run_time(frame_time)
+  total_time += frame_time
+  r.render(data)
 
 print "ran successfully again, now even more elements"
 
@@ -88,6 +103,9 @@ s.add_particles(generate_elements(y_line=max([e['position'][1] for e in data['el
 
 print "energy after adding new elements:", total_energy(data)
 
-s.run_time(30.0)
+while (total_time < 40.0):
+  s.run_time(frame_time)
+  total_time += frame_time
+  r.render(data)
 
 print "successfully ran time for even longer, final energy:", total_energy(data)
