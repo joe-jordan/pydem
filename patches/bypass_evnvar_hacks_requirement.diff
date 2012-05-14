@@ -1,0 +1,40 @@
+Index: python/lammps.py
+===================================================================
+--- python/lammps.py	(revision 8032)
++++ python/lammps.py	(working copy)
+@@ -15,6 +15,7 @@
+ 
+ import types
+ from ctypes import *
++import os.path
+ 
+ LMPINT = 0
+ LMPDOUBLE = 1
+@@ -22,6 +23,8 @@
+ LMPDPTR = 3
+ LMPDPTRPTR = 4
+ 
++LOCATION = os.path.dirname(__file__)
++
+ class lammps:
+   def __init__(self,args=None):
+ 
+@@ -29,13 +32,14 @@
+     # could provide caller a flag to choose which library to load
+     
+     try:
+-      self.lib = CDLL("_lammps.so")
++      self.lib = CDLL(os.path.join(LOCATION, "_lammps.so"))
+     except:
+       try:
+-        self.lib = CDLL("_lammps_serial.so")
++        self.lib = CDLL(os.path.join(LOCATION, "_lammps_serial.so"))
+       except:
+-        raise OSError,"Could not load LAMMPS dynamic library"
+-
++        print "Could not load LAMMPS dynamic library"
++        raise
++    
+     # create an instance of LAMMPS
+     # don't know how to pass an MPI communicator from PyPar
+     # no_mpi call lets LAMMPS use MPI_COMM_WORLD
