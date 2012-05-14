@@ -2,3 +2,13 @@ Other python modules required to make this one work:
 
 cjson - faster json decoding, with significantly less RAM usage than python's built in json support. Essential when working with large json files.
         available at http://pypi.python.org/pypi/python-cjson 
+
+pygame - optional addition for simple 2D visualisations - pretty useful for debugging physics issues.
+         available at http://www.pygame.org/
+
+
+Not a python module, but still required!
+
+lammps - the DEM engine that this project is built to use.
+         http://lammps.sandia.gov/ (homepage)
+         http://lammps.sandia.gov/download.html#svn (instructions for SVN checkouts.)
