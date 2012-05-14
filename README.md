@@ -6,8 +6,9 @@ PYDEM
 Useful Links:
 -------------
 
-[The LAMMPS simulator project](http://lammps.sandia.gov/)
-[Pygame, an optional dependency for simple visualisations](http://www.pygame.org/)
+The [LAMMPS](http://lammps.sandia.gov/) simulator project.
+
+[Pygame](http://www.pygame.org/), an optional dependency for simple visualisations.
 
 Basics
 ------
