@@ -111,6 +111,10 @@ class ForceModel(JsonContainer):
     if 'gravity' in params:
       self.json['gravity'] = params['gravity']
     
+    tangential_ratio = 2.0 / 7.0
+    if 'tangential_ratio' in params:
+      tangential_ratio = params['tangential_ratio']
+    
     # pairwise:
     pairwise_constants = {}
     masses = [e['mass'] for e in data['elements']]
@@ -125,7 +129,7 @@ class ForceModel(JsonContainer):
     ) ** 2
     
     if (params['include_tangential_forces']):
-      pairwise_constants['spring_constant_tan'] = pairwise_constants['spring_constant_norm'] * 2.0 / 7.0
+      pairwise_constants['spring_constant_tan'] = pairwise_constants['spring_constant_norm'] * tangential_ratio
     
     # 4 reduced to 2, because again reduced mass.
     pairwise_constants['damping_norm'] = math.sqrt(
@@ -151,7 +155,7 @@ class ForceModel(JsonContainer):
     ) ** 2
     
     if (params['include_tangential_forces']):
-      boundary_constants['spring_constant_tan'] = boundary_constants['spring_constant_norm'] * 2.0 / 7.0
+      boundary_constants['spring_constant_tan'] = boundary_constants['spring_constant_norm'] * tangential_ratio
     
     boundary_constants['damping_norm'] = math.sqrt(
       (
@@ -218,6 +222,7 @@ class SimulationParams(JsonContainer):
         force_model_params['gravity'] = [0.0, 0.0, -9.8]
       params['force_model'] = ForceModel(force_model_params, data)
     self.json = params
+    self.json['type'] = 'granular'
     self.validate()
   
   def validate(self):
@@ -363,16 +368,23 @@ def open_system(filename):
     json_string = json_string.replace('\'', '\"')
   input_data = cjson.decode(json_string)
   json_file.close()
+  
+  fm_params = input_data['params']['force_model']
+  del input_data['params']['force_model']
   data = {
-    'params' : input_data['params'].to_json(),
+    'params' : SimulationParams(input_data['params'], fm_params),
     'elements' : [Particle(e) for e in input_data['elements']]
   }
+  
   return data
 
 def save_system(data, filename):
   """saves the system in 'data' to a gzipped json format that can be
   restored using open_system.
   """
+  if not filename.endswith('.json.gz'):
+    filename = filename + '.json.gz'
+  
   output_data = {
     'params' : data['params'].to_json(),
     'elements' : [e.to_json() for e in data['elements']]

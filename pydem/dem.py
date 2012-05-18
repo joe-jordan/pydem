@@ -40,7 +40,8 @@ class Simulation:
   lammps instance and associated ctypes and function calls.
   """
   
-  _init_commands = """atom_style sphere
+  _init_commands = """log none
+atom_style sphere
 units si
 
 communicate single vel yes
@@ -106,7 +107,7 @@ provided - called automatically if data is provided to the constructor."""
     
     self._run_commands(commands)
     
-    self.add_particles(self.data['elements'])
+    self.add_particles(self.data['elements'], already_in_array=True)
     
     self.constants_modified()
   
@@ -180,7 +181,7 @@ immidiately, or instance.initialise(data) can be called later."""
           raise
       e.init_lammps(params, write_properties=write_properties, read_properties=read_properties)
   
-  def add_particles(self, new_particles):
+  def add_particles(self, new_particles, already_in_array=False):
     """use this to add particles to lammps safely - do not simply add to
 instance.data['elements'], as lammps will not be notified."""
     self._run_commands([
@@ -191,7 +192,8 @@ instance.data['elements'], as lammps will not be notified."""
     
     self.atoms_created += len(new_particles)
     
-    self.data['elements'].extend(new_particles)
+    if not already_in_array:
+      self.data['elements'].extend(new_particles)
   
   def remove_particles(self, defunct_particles):
     """use this to safely remove particles from the simulation. The particles

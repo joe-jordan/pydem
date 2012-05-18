@@ -44,6 +44,7 @@ def total_energy(data):
   
   return ke + pe
 
+
 limits = [50.0, 50.0]
 
 elements = generate_elements(y_line=13.0, x_limit=limits[0])
@@ -68,20 +69,32 @@ data['params'] = d.SimulationParams({
 
 s = l.Simulation(data)
 
-r = v.SimulationRenderer(data, 20)
+use_graphics = True
 
-frame_rate = 50.0
+if use_graphics:
+  r = v.SimulationRenderer(data, 20)
+  frame_rate = 50.0
+  frame_time = 1.0 / frame_rate
 
-frame_time = 1.0 / frame_rate
 
-run_time = 0.0
 
-while (run_time < 5.0):
-  s.run_time(frame_time)
-  run_time += frame_time
-  r.render(data)
+# note, this wrapper assumes time is seconds not num of timesteps.
+def run_time(time):
+  if use_graphics:
+    run_time = 0.0
+    
+    while (run_time < time):
+      s.run_time(frame_time)
+      run_time += frame_time
+      r.render(data)
+  else:
+    s.run_time(time)
 
-while len(data['elements']) < 500:
+run_time(5.0)
+
+# fill the box
+
+while max([e['position'][1] for e in data['elements']]) + 4.0 < limits[1]:
   print "ran successfully, now adding more elements"
   
   print "energy before adding new elements:", total_energy(data)
@@ -90,11 +103,20 @@ while len(data['elements']) < 500:
   
   print "energy after adding new elements:", total_energy(data)
   
-  run_time = 0.0
-  
-  while (run_time < 5.0):
-    s.run_time(frame_time)
-    run_time += frame_time
-    r.render(data)
+  run_time(5.0)
 
-print "successfully ran time for even longer, final energy:", total_energy(data)
+# now run to equillibrium
+
+print "running to equillibrium, as small velocity."
+
+while max([e['velocity'][0] ** 2 + e['velocity'][1] ** 2 for e in data['elements']]) > 0.00001:
+  run_time(20.0)
+
+
+d.save_system(data, 'stable_pack')
+
+
+
+
+
+
