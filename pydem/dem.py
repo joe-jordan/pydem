@@ -40,8 +40,7 @@ class Simulation:
   lammps instance and associated ctypes and function calls.
   """
   
-  _init_commands = """log none
-atom_style sphere
+  _init_commands = """atom_style sphere
 units si
 
 communicate single vel yes
@@ -101,7 +100,10 @@ provided - called automatically if data is provided to the constructor."""
     self.data = data
     
     if (self.lmp == None):
-      self.lmp = lammps.lammps()
+      args = ['-log', 'none']
+      if not self.show_lammps_output:
+        args.extend(['-screen', 'none'])
+      self.lmp = lammps.lammps(args=args)
     
     commands = self.commands_from_script(self._build_init())
     
@@ -111,9 +113,14 @@ provided - called automatically if data is provided to the constructor."""
     
     self.constants_modified()
   
-  def __init__(self, data=None):
+  def __init__(self, data=None, show_lammps_output=False):
     """data can be provided here, in which case lammps in initialised for use
-immidiately, or instance.initialise(data) can be called later."""
+immidiately, or instance.initialise(data) can be called later.
+lammps spits out a LOT to the command line, especially when running with the
+simple visualiser. This is disabled by default, but you can pass
+show_lammps_output=True
+to this constructor to enable it."""
+    self.show_lammps_output = show_lammps_output
     self.fixes_applied = False
     self.atoms_created = 0
     self.lmp = None
@@ -163,7 +170,6 @@ immidiately, or instance.initialise(data) can be called later."""
   def _sync_pointers(self, particles, start_index=0, write_properties=False, read_properties=False):
     # TODO make particles store their lammps ID, so when particles are removed 
     # the IDs here need not be a contiguous block.
-    print "_sync_pointers called with start_index", start_index
     vars = {}
     for var, ptrtype in Simulation._lammps_extracts.items():
       vars[var] = self.lmp.extract_atom(var, ptrtype)
@@ -304,7 +310,6 @@ you, although note that this MUST be a float:
   
   def _run_commands(self, commands):
     for c in commands:
-      print "running commend:", c
       self.lmp.command(c)
 
 def _string_sub(string, params):
