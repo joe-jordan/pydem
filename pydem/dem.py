@@ -313,6 +313,16 @@ you, although note that this MUST be a float:
   def _run_commands(self, commands):
     for c in commands:
       self.lmp.command(c)
+  
+  def limit_velocities(self, timestep_distance_limit):
+    """can be used to bring the system into equilibrium at the end - limiting
+velocities to very low values can reduce endless vibration."""
+    self.lmp.command("unfix update_positions")
+    self.lmp.command("fix update_positions all nve/limit " + str(timestep_distance_limit))
+  
+  def delimit_velocities(self):
+    self.lmp.command("unfix update_positions")
+    self.lmp.command("fix update_positions all nve/sphere")
 
 def _string_sub(string, params):
   for key, value in params.items():
