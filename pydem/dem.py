@@ -40,6 +40,10 @@ class Simulation:
   lammps instance and associated ctypes and function calls.
   """
   
+  TOTAL = 'totaleoutput'
+  KINETIC = 'kineticeoutput'
+  POTENTIAL = 'potentialeoutput'
+  
   _init_commands = """atom_style sphere
 units si
 
@@ -54,7 +58,11 @@ lattice LATTICE
 region outer_box block SIMULATION_ZONE
 region random_box block RANDOM_ZONE
 
-create_box MAX_ATOM_GUESS outer_box"""
+create_box MAX_ATOM_GUESS outer_box
+
+variable totaleoutput equal etotal
+variable kineticeoutput equal ke
+variable potentialeoutput equal pe"""
   
   # NOTE - we may wish to extend lammps to support 'blank' atoms through the
   # create_atom command, to save all the calls to the random libs.
@@ -112,6 +120,7 @@ provided - called automatically if data is provided to the constructor."""
     self.add_particles(self.data['elements'], already_in_array=True)
     
     self.constants_modified()
+    
   
   def __init__(self, data=None, show_lammps_output=False):
     """data can be provided here, in which case lammps in initialised for use
@@ -284,6 +293,9 @@ or damping have been manually assigned."""
     script = script.replace('WALL_FIXES', '\n'.join(wall_fixes))
     
     return script.replace('DELTA_T', str(fm['timestep']))
+  
+  def compute_energy(self, type=TOTAL):
+    return self.lmp.extract_variable(type, None, 0)
   
   def run_time(self, how_long):
     """when a simulation is ready to run timesteps, call this function with the
