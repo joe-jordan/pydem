@@ -364,6 +364,9 @@ def open_system(filename):
   """opens a gzipped json file, in the format created by this library."""
   json_file = gzip.open(filename, 'rb')
   json_string = json_file.read()
+  
+  # checking for old invalid ' instead of " should be unnecessary, but we leave
+  # it in as it's a pain when it prevents a system from loading.
   if json_string.find('\'') != -1:
     json_string = json_string.replace('\'', '\"')
   input_data = cjson.decode(json_string)
