@@ -49,7 +49,7 @@ dimension DIMENSION
 
 boundary BOUNDARY
 
-lattice sq 1.0
+lattice LATTICE
 
 region outer_box block SIMULATION_ZONE
 region random_box block RANDOM_ZONE
@@ -138,6 +138,8 @@ to this constructor to enable it."""
     # pydem does not endorse unphysical periodic boundary conditions in 
     # mechanically equilibriated granular systems.
     output_commands = output_commands.replace('BOUNDARY', 'f f p' if p['dimension'] == 2 else 'f f f')
+    
+    output_commands = output_commands.replace('LATTICE', "sq 1.0" if p['dimension'] == 2 else "custom 1.0 a1 1.0 0.0 0.0 a2 0.0 1.0 0.0 a3 0.0 0.0 1.0 basis 0.0 0.0 0.0")
     
     limits = [p['x_limit'], p['y_limit']]
     if p['dimension'] > 2:
