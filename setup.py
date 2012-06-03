@@ -1,13 +1,13 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python
 
 """
-setup_serial.py file for pydem LAMMPS bindings.
+setup.py file for pydem LAMMPS bindings.
 """
 
 from distutils.core import setup
 
 setup(name = "pydem",
-      version = "14May2012",
+      version = "2Jun2012",
       author = "Joe Jordan",
       author_email = "joe.jordan@imperial.ac.uk",
       url = "https://github.com/joe-jordan/pydem",
