@@ -77,11 +77,13 @@ fix update_positions all nve/sphere
 
 2D_FIX
 
-fix grav all gravity GRAVITY_SIZE vector GRAVITY_X GRAVITY_Y GRAVITY_Z
+GRAVITY
 
 WALL_FIXES
 
 timestep DELTA_T"""
+  
+  _gravity_fix = "fix grav all gravity GRAVITY_SIZE vector GRAVITY_X GRAVITY_Y GRAVITY_Z"
   
   _2d_fix = "fix enforce_planar all enforce2d"
   
@@ -249,6 +251,14 @@ or damping have been manually assigned."""
   def _remove_fixes(self):
     pass
   
+  def _generate_gravity_fix(self):
+    g = self.data['params']['force_model']['gravity']
+    return Simulation._gravity_fix.replace(
+      'GRAVITY_SIZE', str(vector_length(g)) ).replace(
+      'GRAVITY_X', str(g[0]) ).replace(
+      'GRAVITY_Y', str(g[1]) ).replace(
+      'GRAVITY_Z', str(g[2]) if self.data['params']['dimension'] == 3 else '0.0')
+  
   def _generate_fixes(self):
     fm = self.data['params']['force_model']
     
@@ -270,11 +280,7 @@ or damping have been manually assigned."""
       d2fix = Simulation._2d_fix
     script = script.replace('2D_FIX', d2fix)
     
-    script = script.replace(
-      'GRAVITY_SIZE', str(vector_length(fm['gravity'])) ).replace(
-      'GRAVITY_X', str(fm['gravity'][0]) ).replace(
-      'GRAVITY_Y', str(fm['gravity'][1]) ).replace(
-      'GRAVITY_Z', str(fm['gravity'][2]) if self.data['params']['dimension'] == 3 else '0.0')
+    script = script.replace('GRAVITY', self._generate_gravity_fix())
     
     wall_physics = _string_sub(Simulation._interaction_template, {
       'SPRING_TYPE' : "wall/gran",
@@ -331,6 +337,12 @@ you, although note that this MUST be a float:
   def _run_commands(self, commands):
     for c in commands:
       self.lmp.command(c)
+  
+  def update_gravity(self, g):
+    """allows you to change size/direction of gravity mid-simulation."""
+    self.lmp.command('unfix grav')
+    self.data['params']['force_model']['gravity'] = g
+    self.lmp.command(self._generate_gravity_fix())
   
   def limit_velocities(self, timestep_distance_limit):
     """can be used to bring the system into equilibrium at the end - limiting

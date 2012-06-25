@@ -86,7 +86,7 @@ class ForceModel(JsonContainer):
       self.validate_lazy(params)
       self.initialise_lazy(params, data)
     
-    self.validate(data)
+    self.validate()
   
   def validate_lazy(self, params):
     for key in ForceModel.compulsory_keys_lazy:
@@ -182,7 +182,7 @@ class ForceModel(JsonContainer):
     self.json['timestep'] = shortest_collision_time / params['collision_time_ratio']
     
   
-  def validate(self, data):
+  def validate(self):
     for key in ForceModel.compulsory_keys:
       try:
         self.json[key]
