@@ -1,6 +1,6 @@
 Index: python/lammps.py
 ===================================================================
---- python/lammps.py	(revision 8032)
+--- python/lammps.py	(revision 8387)
 +++ python/lammps.py	(working copy)
 @@ -15,6 +15,7 @@
  
@@ -10,7 +10,7 @@ Index: python/lammps.py
  
  LMPINT = 0
  LMPDOUBLE = 1
-@@ -22,6 +23,8 @@
+@@ -22,19 +23,21 @@
  LMPDPTR = 3
  LMPDPTRPTR = 4
  
@@ -18,23 +18,105 @@ Index: python/lammps.py
 +
  class lammps:
    def __init__(self,args=None):
- 
-@@ -29,13 +32,14 @@
+-
++    
+     # attempt to load parallel library first, serial library next
      # could provide caller a flag to choose which library to load
      
      try:
 -      self.lib = CDLL("_lammps.so")
 +      self.lib = CDLL(os.path.join(LOCATION, "_lammps.so"))
      except:
-       try:
+-      try:
 -        self.lib = CDLL("_lammps_serial.so")
-+        self.lib = CDLL(os.path.join(LOCATION, "_lammps_serial.so"))
-       except:
+-      except:
 -        raise OSError,"Could not load LAMMPS dynamic library"
--
-+        print "Could not load LAMMPS dynamic library"
-+        raise
-+    
++      #try:
++      self.lib = CDLL(os.path.join(LOCATION, "_lammps_serial.so"))
++      #except:
++        #raise OSError,"Could not load LAMMPS dynamic library"
+ 
      # create an instance of LAMMPS
      # don't know how to pass an MPI communicator from PyPar
-     # no_mpi call lets LAMMPS use MPI_COMM_WORLD
+@@ -52,20 +55,20 @@
+       self.lib.lammps_open_no_mpi(0,None,byref(self.lmp))
+       # could use just this if LAMMPS lib interface supported it
+       # self.lmp = self.lib.lammps_open_no_mpi(0,None)
+-
++  
+   def __del__(self):
+     if self.lmp: self.lib.lammps_close(self.lmp)
+-
++  
+   def close(self):
+     self.lib.lammps_close(self.lmp)
+     self.lmp = None
+-
++  
+   def file(self,file):
+     self.lib.lammps_file(self.lmp,file)
+-
++  
+   def command(self,cmd):
+     self.lib.lammps_command(self.lmp,cmd)
+-
++  
+   def extract_global(self,name,type):
+     if type == LMPDOUBLE:
+       self.lib.lammps_extract_global.restype = POINTER(c_double)
+@@ -76,7 +79,7 @@
+       ptr = self.lib.lammps_extract_global(self.lmp,name)
+       return ptr[0]
+     return None
+-
++  
+   def extract_atom(self,name,type):
+     if type == LMPDPTRPTR:
+       self.lib.lammps_extract_atom.restype = POINTER(POINTER(c_double))
+@@ -91,7 +94,7 @@
+       ptr = self.lib.lammps_extract_atom(self.lmp,name)
+       return ptr
+     return None
+-
++  
+   def extract_compute(self,id,style,type):
+     if type == 0:
+       if style > 0: return None
+@@ -107,7 +110,7 @@
+       ptr = self.lib.lammps_extract_compute(self.lmp,id,style,type)
+       return ptr
+     return None
+-
++  
+   # in case of global datum, free memory for 1 double via lammps_free()
+   # double was allocated by library interface function
+   
+@@ -128,7 +131,7 @@
+       ptr = self.lib.lammps_extract_fix(self.lmp,id,style,type,i,j)
+       return ptr
+     return None
+-
++  
+   # free memory for 1 double or 1 vector of doubles via lammps_free()
+   # for vector, must copy nlocal returned values to local c_double vector
+   # memory was allocated by library interface function
+@@ -151,16 +154,16 @@
+       self.lib.lammps_free(ptr)
+       return result
+     return None
+-
++  
+   def get_natoms(self):
+     return self.lib.lammps_get_natoms(self.lmp)
+-
++  
+   def get_coords(self):
+     nlen = 3 * self.lib.lammps_get_natoms(self.lmp)
+     coords = (c_double*nlen)()
+     self.lib.lammps_get_coords(self.lmp,coords)
+     return coords
+-
++  
+   # assume coords is an array of c_double, as created by get_coords()
+   # could check if it is some other Python object and create c_double array?
+   # constructor for c_double array can take an arg to use to fill it?

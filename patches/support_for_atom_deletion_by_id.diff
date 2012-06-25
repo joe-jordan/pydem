@@ -1,0 +1,161 @@
+Index: src/integer_parsing.cpp
+===================================================================
+--- src/integer_parsing.cpp	(revision 0)
++++ src/integer_parsing.cpp	(revision 0)
+@@ -0,0 +1,46 @@
++/* ----------------------------------------------------------------------
++   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
++   http://lammps.sandia.gov, Sandia National Laboratories
++   Steve Plimpton, sjplimp@sandia.gov
++
++   Copyright (2003) Sandia Corporation.  Under the terms of Contract
++   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
++   certain rights in this software.  This software is distributed under
++   the GNU General Public License.
++
++   See the README file in the top-level LAMMPS directory.
++------------------------------------------------------------------------- */
++
++/* ----------------------------------------------------------------------
++   This file contributed by Joe Jordan (joe.jordan@imperial.ac.uk)
++
++   This file uses the method recommended here:
++
++   http://stackoverflow.com/questions/194465/how-to-parse-a-string-to-an-int-in-c
++
++   as the simplest way in C or C++ to parse integers from a string.
++------------------------------------------------------------------------- */
++
++#include <stdlib.h>
++#include <cerrno>
++#include <climits>
++#include "integer_parsing.h"
++
++STR2INT_ERROR str2int (int &i, char const *s, int base)
++{
++    char *end;
++    long  l;
++    errno = 0;
++    l = strtol(s, &end, base);
++    if ((errno == ERANGE && l == LONG_MAX) || l > INT_MAX) {
++        return STR2INT_OVERFLOW;
++    }
++    if ((errno == ERANGE && l == LONG_MIN) || l < INT_MIN) {
++        return STR2INT_UNDERFLOW;
++    }
++    if (*s == '\0' || *end != '\0') {
++        return STR2INT_INCONVERTIBLE;
++    }
++    i = l;
++    return STR2INT_SUCCESS;
++}
+Index: src/integer_parsing.h
+===================================================================
+--- src/integer_parsing.h	(revision 0)
++++ src/integer_parsing.h	(revision 0)
+@@ -0,0 +1,31 @@
++/* ----------------------------------------------------------------------
++   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
++   http://lammps.sandia.gov, Sandia National Laboratories
++   Steve Plimpton, sjplimp@sandia.gov
++
++   Copyright (2003) Sandia Corporation.  Under the terms of Contract
++   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
++   certain rights in this software.  This software is distributed under
++   the GNU General Public License.
++
++   See the README file in the top-level LAMMPS directory.
++------------------------------------------------------------------------- */
++
++/* ----------------------------------------------------------------------
++   This file contributed by Joe Jordan (joe.jordan@imperial.ac.uk)
++
++   This file uses the method recommended here:
++
++   http://stackoverflow.com/questions/194465/how-to-parse-a-string-to-an-int-in-c
++
++   as the simplest and fastest way in C or C++ to parse integers from a string.
++------------------------------------------------------------------------- */
++
++#ifndef INT_PARSING_EXTN_JFJ
++#define INT_PARSING_EXTN_JFJ 1
++
++enum STR2INT_ERROR { STR2INT_SUCCESS, STR2INT_OVERFLOW, STR2INT_UNDERFLOW, STR2INT_INCONVERTIBLE };
++
++STR2INT_ERROR str2int (int &i, char const *s, int base = 0);
++
++#endif
+Index: src/delete_atoms.cpp
+===================================================================
+--- src/delete_atoms.cpp	(revision 8387)
++++ src/delete_atoms.cpp	(working copy)
+@@ -27,6 +27,7 @@
+ #include "random_mars.h"
+ #include "memory.h"
+ #include "error.h"
++#include "integer_parsing.h"
+ 
+ using namespace LAMMPS_NS;
+ 
+@@ -54,6 +55,7 @@
+   else if (strcmp(arg[0],"region") == 0) delete_region(narg,arg);
+   else if (strcmp(arg[0],"overlap") == 0) delete_overlap(narg,arg);
+   else if (strcmp(arg[0],"porosity") == 0) delete_porosity(narg,arg);
++  else if (strcmp(arg[0],"ids") == 0) delete_ids(narg, arg);
+   else error->all(FLERR,"Illegal delete_atoms command");
+ 
+   // delete local atoms flagged in dlist
+@@ -137,6 +139,41 @@
+ }
+ 
+ /* ----------------------------------------------------------------------
++   delete all atoms listed by id.
++------------------------------------------------------------------------- */
++
++void DeleteAtoms::delete_ids(int narg, char **arg)
++{
++  if (narg < 2) error->all(FLERR,"Illegal delete_atoms command");
++
++  int nlocal = atom->nlocal;
++
++  int local_narg = narg;
++  if (compress_flag) {
++    local_narg -= 2;
++  }
++  // parse the ids passed in the args.
++  int* ids_to_delete = (int*)malloc(sizeof(int) * (local_narg-2));
++  for (int i = 2; i < local_narg; i++) {
++    if (str2int(ids_to_delete[i-2], arg[i]) != STR2INT_SUCCESS) {
++      error->all(FLERR,"Illegal delete_atoms command: unrecognised atom id.");
++    }
++    if (ids_to_delete[i-2] > nlocal) {
++      error->all(FLERR,"Illegal delete_atoms command: atom id out of bounds.");
++    }
++  }
++
++  // allocate and initialize deletion list
++  memory->create(dlist,nlocal,"delete_atoms:dlist");
++  for (int i = 0; i < nlocal; i++) dlist[i] = 0;
++
++  for (int i = 0; i < local_narg - 2; i++)
++    dlist[ids_to_delete[i]] = 1;
++
++  free(ids_to_delete);
++}
++
++/* ----------------------------------------------------------------------
+    delete all atoms in region
+ ------------------------------------------------------------------------- */
+ 
+Index: src/delete_atoms.h
+===================================================================
+--- src/delete_atoms.h	(revision 8387)
++++ src/delete_atoms.h	(working copy)
+@@ -37,6 +37,7 @@
+   void delete_region(int, char **);
+   void delete_overlap(int, char **);
+   void delete_porosity(int, char **);
++  void delete_ids(int, char **);
+   void options(int, char **);
+ 
+   inline int sbmask(int j) {

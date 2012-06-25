@@ -216,7 +216,13 @@ instance.data['elements'], as lammps will not be notified."""
     """use this to safely remove particles from the simulation. The particles
 will be automatically removed from data['elements'] after they are removed from
 lammps."""
-    raise Exception("warning, remove_particles not yet implemented.")
+    ids_to_remove = [self.data['elements'].index(i) for i in defunct_particles]
+    ids_as_strings = [str(i) for i in ids_to_remove]
+    command = 'delete_atoms ids ' + ' '.join(ids_as_strings)
+    self._run_commands([command])
+    self.data['elements'] = [e for i, e in enumerate(self.data['elements']) if i not in ids_to_remove]
+    self._sync_pointers(self.data['elements'], read_properties=True)
+    
   
   def particles_modified(self):
     """always call this method when elements' python properties have been

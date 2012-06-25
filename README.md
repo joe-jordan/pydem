@@ -62,8 +62,7 @@ Building LAMMPS is big and complicated and tricky, they have a whole documentati
 2) *for now* apply my patches
 
     cd ..
-    patch -p0 -i pydem-checkout-path/patches/bypass_evnvar_hacks_requirement.diff
-    patch -p0 -i pydem-checkout-path/patches/support_for_more_extract_atom_keywords.diff
+    patch -p0 -i pydem-checkout-path/patches/all.diff
 
 (where `pydem-checkout-path` is a valid path to a checkout of this project, obviously.)
 

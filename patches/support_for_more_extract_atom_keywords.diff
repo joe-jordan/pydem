@@ -1,8 +1,8 @@
 Index: src/atom.cpp
 ===================================================================
---- src/atom.cpp	(revision 8032)
+--- src/atom.cpp	(revision 8387)
 +++ src/atom.cpp	(working copy)
-@@ -1620,6 +1620,10 @@
+@@ -1626,6 +1626,10 @@
    if (strcmp(name,"f") == 0) return (void *) f;
    if (strcmp(name,"mass") == 0) return (void *) mass;
    if (strcmp(name,"rmass") == 0) return (void *) rmass;
