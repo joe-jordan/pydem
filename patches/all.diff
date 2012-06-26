@@ -120,6 +120,42 @@ Index: python/lammps.py
    # assume coords is an array of c_double, as created by get_coords()
    # could check if it is some other Python object and create c_double array?
    # constructor for c_double array can take an arg to use to fill it?
+Index: src/integer_parsing.h
+===================================================================
+--- src/integer_parsing.h	(revision 0)
++++ src/integer_parsing.h	(revision 0)
+@@ -0,0 +1,31 @@
++/* ----------------------------------------------------------------------
++   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
++   http://lammps.sandia.gov, Sandia National Laboratories
++   Steve Plimpton, sjplimp@sandia.gov
++
++   Copyright (2003) Sandia Corporation.  Under the terms of Contract
++   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
++   certain rights in this software.  This software is distributed under
++   the GNU General Public License.
++
++   See the README file in the top-level LAMMPS directory.
++------------------------------------------------------------------------- */
++
++/* ----------------------------------------------------------------------
++   This file contributed by Joe Jordan (joe.jordan@imperial.ac.uk)
++
++   This file uses the method recommended here:
++
++   http://stackoverflow.com/questions/194465/how-to-parse-a-string-to-an-int-in-c
++
++   as the simplest and fastest way in C or C++ to parse integers from a string.
++------------------------------------------------------------------------- */
++
++#ifndef INT_PARSING_EXTN_JFJ
++#define INT_PARSING_EXTN_JFJ 1
++
++enum STR2INT_ERROR { STR2INT_SUCCESS, STR2INT_OVERFLOW, STR2INT_UNDERFLOW, STR2INT_INCONVERTIBLE };
++
++STR2INT_ERROR str2int (int &i, char const *s, int base = 0);
++
++#endif
 Index: src/delete_atoms.h
 ===================================================================
 --- src/delete_atoms.h	(revision 8389)
@@ -209,3 +245,54 @@ Index: src/atom.cpp
  
    return NULL;
  }
+Index: src/integer_parsing.cpp
+===================================================================
+--- src/integer_parsing.cpp	(revision 0)
++++ src/integer_parsing.cpp	(revision 0)
+@@ -0,0 +1,46 @@
++/* ----------------------------------------------------------------------
++   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
++   http://lammps.sandia.gov, Sandia National Laboratories
++   Steve Plimpton, sjplimp@sandia.gov
++
++   Copyright (2003) Sandia Corporation.  Under the terms of Contract
++   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
++   certain rights in this software.  This software is distributed under
++   the GNU General Public License.
++
++   See the README file in the top-level LAMMPS directory.
++------------------------------------------------------------------------- */
++
++/* ----------------------------------------------------------------------
++   This file contributed by Joe Jordan (joe.jordan@imperial.ac.uk)
++
++   This file uses the method recommended here:
++
++   http://stackoverflow.com/questions/194465/how-to-parse-a-string-to-an-int-in-c
++
++   as the simplest way in C or C++ to parse integers from a string.
++------------------------------------------------------------------------- */
++
++#include <stdlib.h>
++#include <cerrno>
++#include <climits>
++#include "integer_parsing.h"
++
++STR2INT_ERROR str2int (int &i, char const *s, int base)
++{
++    char *end;
++    long  l;
++    errno = 0;
++    l = strtol(s, &end, base);
++    if ((errno == ERANGE && l == LONG_MAX) || l > INT_MAX) {
++        return STR2INT_OVERFLOW;
++    }
++    if ((errno == ERANGE && l == LONG_MIN) || l < INT_MIN) {
++        return STR2INT_UNDERFLOW;
++    }
++    if (*s == '\0' || *end != '\0') {
++        return STR2INT_INCONVERTIBLE;
++    }
++    i = l;
++    return STR2INT_SUCCESS;
++}
