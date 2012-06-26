@@ -1,6 +1,6 @@
 Index: python/lammps.py
 ===================================================================
---- python/lammps.py	(revision 8387)
+--- python/lammps.py	(revision 8389)
 +++ python/lammps.py	(working copy)
 @@ -15,6 +15,7 @@
  
@@ -120,45 +120,9 @@ Index: python/lammps.py
    # assume coords is an array of c_double, as created by get_coords()
    # could check if it is some other Python object and create c_double array?
    # constructor for c_double array can take an arg to use to fill it?
-Index: src/integer_parsing.h
-===================================================================
---- src/integer_parsing.h	(revision 0)
-+++ src/integer_parsing.h	(revision 0)
-@@ -0,0 +1,31 @@
-+/* ----------------------------------------------------------------------
-+   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
-+   http://lammps.sandia.gov, Sandia National Laboratories
-+   Steve Plimpton, sjplimp@sandia.gov
-+
-+   Copyright (2003) Sandia Corporation.  Under the terms of Contract
-+   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
-+   certain rights in this software.  This software is distributed under
-+   the GNU General Public License.
-+
-+   See the README file in the top-level LAMMPS directory.
-+------------------------------------------------------------------------- */
-+
-+/* ----------------------------------------------------------------------
-+   This file contributed by Joe Jordan (joe.jordan@imperial.ac.uk)
-+
-+   This file uses the method recommended here:
-+
-+   http://stackoverflow.com/questions/194465/how-to-parse-a-string-to-an-int-in-c
-+
-+   as the simplest and fastest way in C or C++ to parse integers from a string.
-+------------------------------------------------------------------------- */
-+
-+#ifndef INT_PARSING_EXTN_JFJ
-+#define INT_PARSING_EXTN_JFJ 1
-+
-+enum STR2INT_ERROR { STR2INT_SUCCESS, STR2INT_OVERFLOW, STR2INT_UNDERFLOW, STR2INT_INCONVERTIBLE };
-+
-+STR2INT_ERROR str2int (int &i, char const *s, int base = 0);
-+
-+#endif
 Index: src/delete_atoms.h
 ===================================================================
---- src/delete_atoms.h	(revision 8387)
+--- src/delete_atoms.h	(revision 8389)
 +++ src/delete_atoms.h	(working copy)
 @@ -37,6 +37,7 @@
    void delete_region(int, char **);
@@ -170,7 +134,7 @@ Index: src/delete_atoms.h
    inline int sbmask(int j) {
 Index: src/delete_atoms.cpp
 ===================================================================
---- src/delete_atoms.cpp	(revision 8387)
+--- src/delete_atoms.cpp	(revision 8389)
 +++ src/delete_atoms.cpp	(working copy)
 @@ -27,6 +27,7 @@
  #include "random_mars.h"
@@ -202,16 +166,16 @@ Index: src/delete_atoms.cpp
 +  int nlocal = atom->nlocal;
 +
 +  int local_narg = narg;
-+  if (compress_flag) {
++  if (strcmp(arg[narg-2], "compress") == 0) {
 +    local_narg -= 2;
 +  }
 +  // parse the ids passed in the args.
-+  int* ids_to_delete = (int*)malloc(sizeof(int) * (local_narg-2));
-+  for (int i = 2; i < local_narg; i++) {
-+    if (str2int(ids_to_delete[i-2], arg[i]) != STR2INT_SUCCESS) {
++  int* ids_to_delete = (int*)malloc(sizeof(int) * (local_narg-1));
++  for (int i = 1; i < local_narg; i++) {
++    if (str2int(ids_to_delete[i-1], arg[i]) != STR2INT_SUCCESS) {
 +      error->all(FLERR,"Illegal delete_atoms command: unrecognised atom id.");
 +    }
-+    if (ids_to_delete[i-2] > nlocal) {
++    if (ids_to_delete[i-1] > nlocal) {
 +      error->all(FLERR,"Illegal delete_atoms command: atom id out of bounds.");
 +    }
 +  }
@@ -220,7 +184,7 @@ Index: src/delete_atoms.cpp
 +  memory->create(dlist,nlocal,"delete_atoms:dlist");
 +  for (int i = 0; i < nlocal; i++) dlist[i] = 0;
 +
-+  for (int i = 0; i < local_narg - 2; i++)
++  for (int i = 0; i < local_narg - 1; i++)
 +    dlist[ids_to_delete[i]] = 1;
 +
 +  free(ids_to_delete);
@@ -232,7 +196,7 @@ Index: src/delete_atoms.cpp
  
 Index: src/atom.cpp
 ===================================================================
---- src/atom.cpp	(revision 8387)
+--- src/atom.cpp	(revision 8389)
 +++ src/atom.cpp	(working copy)
 @@ -1626,6 +1626,10 @@
    if (strcmp(name,"f") == 0) return (void *) f;
@@ -245,54 +209,3 @@ Index: src/atom.cpp
  
    return NULL;
  }
-Index: src/integer_parsing.cpp
-===================================================================
---- src/integer_parsing.cpp	(revision 0)
-+++ src/integer_parsing.cpp	(revision 0)
-@@ -0,0 +1,46 @@
-+/* ----------------------------------------------------------------------
-+   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
-+   http://lammps.sandia.gov, Sandia National Laboratories
-+   Steve Plimpton, sjplimp@sandia.gov
-+
-+   Copyright (2003) Sandia Corporation.  Under the terms of Contract
-+   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
-+   certain rights in this software.  This software is distributed under
-+   the GNU General Public License.
-+
-+   See the README file in the top-level LAMMPS directory.
-+------------------------------------------------------------------------- */
-+
-+/* ----------------------------------------------------------------------
-+   This file contributed by Joe Jordan (joe.jordan@imperial.ac.uk)
-+
-+   This file uses the method recommended here:
-+
-+   http://stackoverflow.com/questions/194465/how-to-parse-a-string-to-an-int-in-c
-+
-+   as the simplest way in C or C++ to parse integers from a string.
-+------------------------------------------------------------------------- */
-+
-+#include <stdlib.h>
-+#include <cerrno>
-+#include <climits>
-+#include "integer_parsing.h"
-+
-+STR2INT_ERROR str2int (int &i, char const *s, int base)
-+{
-+    char *end;
-+    long  l;
-+    errno = 0;
-+    l = strtol(s, &end, base);
-+    if ((errno == ERANGE && l == LONG_MAX) || l > INT_MAX) {
-+        return STR2INT_OVERFLOW;
-+    }
-+    if ((errno == ERANGE && l == LONG_MIN) || l < INT_MIN) {
-+        return STR2INT_UNDERFLOW;
-+    }
-+    if (*s == '\0' || *end != '\0') {
-+        return STR2INT_INCONVERTIBLE;
-+    }
-+    i = l;
-+    return STR2INT_SUCCESS;
-+}

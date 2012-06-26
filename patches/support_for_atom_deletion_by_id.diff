@@ -1,3 +1,77 @@
+Index: src/delete_atoms.cpp
+===================================================================
+--- src/delete_atoms.cpp	(revision 8389)
++++ src/delete_atoms.cpp	(working copy)
+@@ -27,6 +27,7 @@
+ #include "random_mars.h"
+ #include "memory.h"
+ #include "error.h"
++#include "integer_parsing.h"
+ 
+ using namespace LAMMPS_NS;
+ 
+@@ -54,6 +55,7 @@
+   else if (strcmp(arg[0],"region") == 0) delete_region(narg,arg);
+   else if (strcmp(arg[0],"overlap") == 0) delete_overlap(narg,arg);
+   else if (strcmp(arg[0],"porosity") == 0) delete_porosity(narg,arg);
++  else if (strcmp(arg[0],"ids") == 0) delete_ids(narg, arg);
+   else error->all(FLERR,"Illegal delete_atoms command");
+ 
+   // delete local atoms flagged in dlist
+@@ -137,6 +139,41 @@
+ }
+ 
+ /* ----------------------------------------------------------------------
++   delete all atoms listed by id.
++------------------------------------------------------------------------- */
++
++void DeleteAtoms::delete_ids(int narg, char **arg)
++{
++  if (narg < 2) error->all(FLERR,"Illegal delete_atoms command");
++
++  int nlocal = atom->nlocal;
++
++  int local_narg = narg;
++  if (strcmp(arg[narg-2], "compress") == 0) {
++    local_narg -= 2;
++  }
++  // parse the ids passed in the args.
++  int* ids_to_delete = (int*)malloc(sizeof(int) * (local_narg-1));
++  for (int i = 1; i < local_narg; i++) {
++    if (str2int(ids_to_delete[i-1], arg[i]) != STR2INT_SUCCESS) {
++      error->all(FLERR,"Illegal delete_atoms command: unrecognised atom id.");
++    }
++    if (ids_to_delete[i-1] > nlocal) {
++      error->all(FLERR,"Illegal delete_atoms command: atom id out of bounds.");
++    }
++  }
++
++  // allocate and initialize deletion list
++  memory->create(dlist,nlocal,"delete_atoms:dlist");
++  for (int i = 0; i < nlocal; i++) dlist[i] = 0;
++
++  for (int i = 0; i < local_narg - 1; i++)
++    dlist[ids_to_delete[i]] = 1;
++
++  free(ids_to_delete);
++}
++
++/* ----------------------------------------------------------------------
+    delete all atoms in region
+ ------------------------------------------------------------------------- */
+ 
+Index: src/delete_atoms.h
+===================================================================
+--- src/delete_atoms.h	(revision 8389)
++++ src/delete_atoms.h	(working copy)
+@@ -37,6 +37,7 @@
+   void delete_region(int, char **);
+   void delete_overlap(int, char **);
+   void delete_porosity(int, char **);
++  void delete_ids(int, char **);
+   void options(int, char **);
+ 
+   inline int sbmask(int j) {
 Index: src/integer_parsing.cpp
 ===================================================================
 --- src/integer_parsing.cpp	(revision 0)
@@ -85,77 +159,3 @@ Index: src/integer_parsing.h
 +STR2INT_ERROR str2int (int &i, char const *s, int base = 0);
 +
 +#endif
-Index: src/delete_atoms.cpp
-===================================================================
---- src/delete_atoms.cpp	(revision 8387)
-+++ src/delete_atoms.cpp	(working copy)
-@@ -27,6 +27,7 @@
- #include "random_mars.h"
- #include "memory.h"
- #include "error.h"
-+#include "integer_parsing.h"
- 
- using namespace LAMMPS_NS;
- 
-@@ -54,6 +55,7 @@
-   else if (strcmp(arg[0],"region") == 0) delete_region(narg,arg);
-   else if (strcmp(arg[0],"overlap") == 0) delete_overlap(narg,arg);
-   else if (strcmp(arg[0],"porosity") == 0) delete_porosity(narg,arg);
-+  else if (strcmp(arg[0],"ids") == 0) delete_ids(narg, arg);
-   else error->all(FLERR,"Illegal delete_atoms command");
- 
-   // delete local atoms flagged in dlist
-@@ -137,6 +139,41 @@
- }
- 
- /* ----------------------------------------------------------------------
-+   delete all atoms listed by id.
-+------------------------------------------------------------------------- */
-+
-+void DeleteAtoms::delete_ids(int narg, char **arg)
-+{
-+  if (narg < 2) error->all(FLERR,"Illegal delete_atoms command");
-+
-+  int nlocal = atom->nlocal;
-+
-+  int local_narg = narg;
-+  if (compress_flag) {
-+    local_narg -= 2;
-+  }
-+  // parse the ids passed in the args.
-+  int* ids_to_delete = (int*)malloc(sizeof(int) * (local_narg-2));
-+  for (int i = 2; i < local_narg; i++) {
-+    if (str2int(ids_to_delete[i-2], arg[i]) != STR2INT_SUCCESS) {
-+      error->all(FLERR,"Illegal delete_atoms command: unrecognised atom id.");
-+    }
-+    if (ids_to_delete[i-2] > nlocal) {
-+      error->all(FLERR,"Illegal delete_atoms command: atom id out of bounds.");
-+    }
-+  }
-+
-+  // allocate and initialize deletion list
-+  memory->create(dlist,nlocal,"delete_atoms:dlist");
-+  for (int i = 0; i < nlocal; i++) dlist[i] = 0;
-+
-+  for (int i = 0; i < local_narg - 2; i++)
-+    dlist[ids_to_delete[i]] = 1;
-+
-+  free(ids_to_delete);
-+}
-+
-+/* ----------------------------------------------------------------------
-    delete all atoms in region
- ------------------------------------------------------------------------- */
- 
-Index: src/delete_atoms.h
-===================================================================
---- src/delete_atoms.h	(revision 8387)
-+++ src/delete_atoms.h	(working copy)
-@@ -37,6 +37,7 @@
-   void delete_region(int, char **);
-   void delete_overlap(int, char **);
-   void delete_porosity(int, char **);
-+  void delete_ids(int, char **);
-   void options(int, char **);
- 
-   inline int sbmask(int j) {
