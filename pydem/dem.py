@@ -353,6 +353,12 @@ velocities to very low values can reduce endless vibration."""
   def delimit_velocities(self):
     self.lmp.command("unfix update_positions")
     self.lmp.command("fix update_positions all nve/sphere")
+  
+  def close(self):
+    """use this method if you want to instantiate a new simulation without
+    restarting python."""
+    self.lmp.command('clear')
+    self.lmp = None
 
 def _string_sub(string, params):
   for key, value in params.items():
