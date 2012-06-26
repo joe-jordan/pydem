@@ -90,12 +90,14 @@ class SimulationRenderer:
     current_radius = 0.0
     current_x = 0.0
     current_y = 0.0
+    current_id = 0
     
     try:
       self.render_surface.fill(self.white)
     
       # note, y coords on screen are upside down.
-      for e in elements:
+      for i, e in enumerate(elements):
+        current_id = i
         current_radius = int(round(self.pixel_density * e.json["radius"] * r_scale))
         current_x = int(round(self.pixel_density * (e["position"][0] - x_offset) * r_scale))
         current_y = int(round(self.pixel_density * ((y_limit - e["position"][SimulationRenderer.vertical[1]]) - y_offset) * r_scale))
@@ -121,5 +123,5 @@ class SimulationRenderer:
       
     except:
       #just give up on rendering this frame...
-      print "caught a rendering exception, on radius " + str(current_radius) + " and x " + str(current_x) + " and y " + str(current_y)
+      print "caught a rendering exception, on radius " + str(current_radius) + " and x " + str(current_x) + " and y " + str(current_y) + " and id " + str(current_id)
       raise
