@@ -80,9 +80,9 @@ class ForceModel(JsonContainer):
     return 'resitiution_coefficient' in params and not 'timestep' in params  
   
   def __init__(self, params, data):
-    if not self.is_lazy(params):
-      self.json = params
-    else:
+    self.json = params
+    
+    if self.is_lazy(params):
       self.validate_lazy(params)
       self.initialise_lazy(params, data)
     
@@ -102,18 +102,13 @@ class ForceModel(JsonContainer):
       raise Exception('hookian force model initialisation is the only type to have been implemented in the wrapper so far - you may specify your own herzian spring/damping values.')
   
   def initialise_lazy_hookian(self, params, data):
-    self.json = {
-      'type' : ForceModelType.HOOKIAN,
-      'include_tangential_forces' : params['include_tangential_forces'],
-      'gravity' : [0.0, -9.8]
-    }
+    self.json['type'] = ForceModelType.HOOKIAN
     
-    if 'gravity' in params:
-      self.json['gravity'] = params['gravity']
+    if 'gravity' not in params:
+      self.json['gravity'] = [0.0, -9.8]
     
-    tangential_ratio = 2.0 / 7.0
-    if 'tangential_ratio' in params:
-      tangential_ratio = params['tangential_ratio']
+    if 'tangential_ratio' not in params:
+      self.json['tangential_ratio'] = 2.0 / 7.0
     
     # pairwise:
     pairwise_constants = {}
@@ -129,7 +124,7 @@ class ForceModel(JsonContainer):
     ) ** 2
     
     if (params['include_tangential_forces']):
-      pairwise_constants['spring_constant_tan'] = pairwise_constants['spring_constant_norm'] * tangential_ratio
+      pairwise_constants['spring_constant_tan'] = pairwise_constants['spring_constant_norm'] * self.json['tangential_ratio']
     
     # 4 reduced to 2, because again reduced mass.
     pairwise_constants['damping_norm'] = math.sqrt(
@@ -155,7 +150,7 @@ class ForceModel(JsonContainer):
     ) ** 2
     
     if (params['include_tangential_forces']):
-      boundary_constants['spring_constant_tan'] = boundary_constants['spring_constant_norm'] * tangential_ratio
+      boundary_constants['spring_constant_tan'] = boundary_constants['spring_constant_norm'] * self.json['tangential_ratio']
     
     boundary_constants['damping_norm'] = math.sqrt(
       (
