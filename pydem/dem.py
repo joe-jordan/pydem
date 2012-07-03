@@ -321,9 +321,7 @@ number of timesteps to proceed by. You can also provide the number of
 in-universe seconds to run for, and this will be translated to timesteps for
 you, although note that this MUST be a float:
   instance.run_time(5) => run 5 timesteps,
-  instance.run_time(5.0) => run for 5 in-universe seconds.
-NOTE if a renderer has been assigned, and dont_render is False, time run will
-be an integral number of frames, rounded up."""
+  instance.run_time(5.0) => run for 5 in-universe seconds."""
     if isinstance(time, numbers.Integral):
       how_many = time
       how_long = how_many * self.data['params']['force_model']['timestep']
@@ -331,17 +329,25 @@ be an integral number of frames, rounded up."""
       how_many = int(time / self.data['params']['force_model']['timestep'])
       how_long = time
     
-    if self.renderer != None and not dont_render and how_long > self.renderer.frame_time:
+    if self.renderer != None and not dont_render:
       frame_how_long = self.renderer.frame_time
       frames_to_render = int(round(how_long / frame_how_long))
-      frame_how_many = how_many / frames_to_render
-      if how_many % frames_to_render != 0:
-        frame_how_many += 1
-        
+      
+      if frames_to_render > 0:
+        frame_how_many = how_many / frames_to_render
+        leftover_timesteps = how_many % frames_to_render
+      else:
+        leftover_timesteps = how_many
+      
       for i in range(frames_to_render):
         self.lmp.command('run ' + str(frame_how_many))
         self._update_particles_from_lammps()
         self.renderer.render(self.data)
+      if leftover_timesteps > 0:
+        self.lmp.command('run ' + str(leftover_timesteps))
+        self._update_particles_from_lammps()
+        self.renderer.render(self.data)
+      
     else:
       if how_many <= 0:
         return
