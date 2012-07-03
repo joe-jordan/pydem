@@ -124,7 +124,7 @@ provided - called automatically if data is provided to the constructor."""
     self.constants_modified()
     
   
-  def __init__(self, data=None, show_lammps_output=False):
+  def __init__(self, data=None, show_lammps_output=False, renderer=None):
     """data can be provided here, in which case lammps in initialised for use
 immidiately, or instance.initialise(data) can be called later.
 lammps spits out a LOT to the command line, especially when running with the
@@ -135,6 +135,12 @@ to this constructor to enable it."""
     self.fixes_applied = False
     self.atoms_created = 0
     self.lmp = None
+    self.renderer = renderer
+    if self.renderer == None:
+      try:
+        self.renderer = data['params']['renderer']
+      except KeyError:
+        pass
     if data != None:
       self.initialise(data)
   
@@ -309,22 +315,38 @@ or damping have been manually assigned."""
   def compute_energy(self, type=TOTAL):
     return self.lmp.extract_variable(type, None, 0)
   
-  def run_time(self, how_long):
+  def run_time(self, time, dont_render=False):
     """when a simulation is ready to run timesteps, call this function with the
 number of timesteps to proceed by. You can also provide the number of 
 in-universe seconds to run for, and this will be translated to timesteps for
 you, although note that this MUST be a float:
   instance.run_time(5) => run 5 timesteps,
-  instance.run_time(5.0) => run for 5 in-universe seconds."""
-    if not isinstance(how_long, numbers.Integral):
-      how_long = int(how_long / self.data['params']['force_model']['timestep'])
+  instance.run_time(5.0) => run for 5 in-universe seconds.
+NOTE if a renderer has been assigned, and dont_render is False, time run will
+be an integral number of frames, rounded up."""
+    if isinstance(time, numbers.Integral):
+      how_many = time
+      how_long = how_many * self.data['params']['force_model']['timestep']
+    else:
+      how_many = int(time / self.data['params']['force_model']['timestep'])
+      how_long = time
     
-    if how_long <= 0:
-      return
-    
-    self.lmp.command('run ' + str(how_long))
-    
-    self._update_particles_from_lammps()
+    if self.renderer != None and not dont_render and how_long > self.renderer.frame_time:
+      frame_how_long = self.renderer.frame_time
+      frames_to_render = int(round(how_long / frame_how_long))
+      frame_how_many = how_many / frames_to_render
+      if how_many % frames_to_render != 0:
+        frame_how_many += 1
+        
+      for i in range(frames_to_render):
+        self.lmp.command('run ' + str(frame_how_many))
+        self._update_particles_from_lammps()
+        self.renderer.render(self.data)
+    else:
+      if how_many <= 0:
+        return
+      self.lmp.command('run ' + str(how_many))
+      self._update_particles_from_lammps()
   
   def _update_particles_from_lammps(self):
     for e in self.data['elements']:
