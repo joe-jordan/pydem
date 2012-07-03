@@ -33,7 +33,10 @@ class JsonContainer:
   def __setitem__(self, key, value):
     self.json[key] = value
     self.validate()
-    
+  
+  def __delitem__(self, key):
+    del self.json[key]
+  
   def to_json(self):
     return self.json
 
@@ -56,7 +59,10 @@ class ForceModel(JsonContainer):
     'max_overlap_ratio',
     'collision_time_ratio',
     'include_tangential_forces',
-    'container_height'
+    'container_height',
+    'min_radius',
+    'max_mass',
+    'min_mass'
   ]
   compulsory_keys = [
     'type',
@@ -79,12 +85,12 @@ class ForceModel(JsonContainer):
     """simplistic test whether user is providing proxies or constants."""
     return 'resitiution_coefficient' in params and not 'timestep' in params  
   
-  def __init__(self, params, data):
+  def __init__(self, params):
     self.json = params
     
     if self.is_lazy(params):
       self.validate_lazy(params)
-      self.initialise_lazy(params, data)
+      self.initialise_lazy(params)
     
     self.validate()
   
@@ -95,13 +101,13 @@ class ForceModel(JsonContainer):
       except KeyError:
         raise InvalidArgumentError("Compulsory property '" + key + "' was not specified.")
   
-  def initialise_lazy(self, params, data):
+  def initialise_lazy(self, params):
     if params['type'] == ForceModelType.HOOKIAN:
-      self.initialise_lazy_hookian(params, data)
+      self.initialise_lazy_hookian(params)
     else:
       raise Exception('hookian force model initialisation is the only type to have been implemented in the wrapper so far - you may specify your own herzian spring/damping values.')
   
-  def initialise_lazy_hookian(self, params, data):
+  def initialise_lazy_hookian(self, params):
     self.json['type'] = ForceModelType.HOOKIAN
     
     if 'gravity' not in params:
@@ -112,15 +118,14 @@ class ForceModel(JsonContainer):
     
     # pairwise:
     pairwise_constants = {}
-    masses = [e['mass'] for e in data['elements']]
-    max_mass = max(masses)
-    min_mass = min(masses)
+    max_mass = params['max_mass']
+    min_mass = params['min_mass']
     
     # max_mass / 2.0 is the max reduced mass, and height * g is max velocity squared.
     pairwise_constants['spring_constant_norm'] = (
       (max_mass / 2.0) * (vector_length(self.json['gravity']) * params['container_height'])
     ) / (
-      min([e['radius'] * 2.0 for e in data['elements']]) * params['max_overlap_ratio']
+      params['min_radius'] * 2.0 * params['max_overlap_ratio']
     ) ** 2
     
     if (params['include_tangential_forces']):
@@ -146,7 +151,7 @@ class ForceModel(JsonContainer):
     boundary_constants['spring_constant_norm'] = (
       (max_mass) * (vector_length(self.json['gravity']) * params['container_height'])
     ) / (
-      min([e['radius'] * 2.0 for e in data['elements']]) * params['max_overlap_ratio']
+      params['min_radius'] * 2.0 * params['max_overlap_ratio']
     ) ** 2
     
     if (params['include_tangential_forces']):
@@ -215,7 +220,7 @@ class SimulationParams(JsonContainer):
     if 'force_model' not in params and force_model_params != None:
       if 'gravity' not in force_model_params and params['dimension'] == 3:
         force_model_params['gravity'] = [0.0, 0.0, -9.8]
-      params['force_model'] = ForceModel(force_model_params, data)
+      params['force_model'] = ForceModel(force_model_params)
     self.json = params
     self.json['type'] = 'granular'
     self.validate()
