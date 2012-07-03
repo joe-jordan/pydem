@@ -27,6 +27,44 @@ import random, time, math, os
 class DepositionMethod:
   RANDOM_SPACED_SHEETS = 0
 
+class Dispersity:
+  POLYDISPERSE = 0  
+  MONODISPERSE = 1
+  BIDISPERSE = 2
+  
+  def validate(self):
+    if not self.d in [
+      Dispersity.POLYDISPERSE,
+      Dispersity.MONODISPERSE,
+      Dispersity.BIDISPERSE
+    ]:
+      raise Exception('not a recognised dispersity.')
+  
+  def __init__(self, element_generation_params):
+    self.d = element_generation_params['dispersity']
+    self.min_r = element_generation_params['min_radius']
+    self.max_r = element_generation_params['max_radius']
+    
+    self.validate()
+    
+    if self.d == Dispersity.POLYDISPERSE:
+      self.generate_radius = self._p
+    elif self.d == Dispersity.MONODISPERSE:
+      self.generate_radius = self._m
+    elif self.d == Dispersity.BIDISPERSE:
+      self.generate_radius = self._b
+  
+  def _p(self):
+    return rand_float(self.min_r, self.max_r)
+  
+  def _m(self):
+    return self.min_r
+  
+  def _b(self):
+    if random.randint(0, 1):
+      return self.max_r
+    return self.min_r
+
 def rand_float(minimum, maximum):
   from_system = random.random()
   scale = maximum - minimum
@@ -163,12 +201,8 @@ relax."""
     
     travel_limit =  current_max_velocity / 10.0 * system['params']['force_model']['timestep']
 
-def generate_stable_pack(params=None):
-  """Generates a granular pack in equilibrium. arguments:
-  params = a dict of options for the simulation. read the source to see what
-           defaults are there to override - there are lots, all at the top.
-this function *returns* the new system - the caller must save it to disk. 
-"""
+
+def generate_params(inputs=None):
   options = {
     'simulation_params' : {
       'dimension' : 3,
@@ -194,9 +228,9 @@ this function *returns* the new system - the caller must save it to disk.
   }
   
   # update options from what was passed in by caller:
-  if params:
+  if inputs:
     for paramset in options.keys():
-      for key, value in params[paramset].items():
+      for key, value in inputs[paramset].items():
         options[paramset][key] = value
   
   dimension = options['simulation_params']['dimension']
@@ -208,17 +242,28 @@ this function *returns* the new system - the caller must save it to disk.
     vertical_key = 'z_limit'
   else:
     del options['simulation_params']['z_limit']
-    
+  
+  options['force_model_params']['min_radius'] = options['element_generation_params']['min_radius']
+  options['force_model_params']['max_mass'] = math.pi * options['element_generation_params']['max_radius'] ** 2 
+  options['force_model_params']['min_mass'] = math.pi * options['element_generation_params']['min_radius'] ** 2
   
   # update the force model's container_height from simulation params:
   options['force_model_params']['container_height'] = options['simulation_params'][vertical_key]
   
-  # generate the first row/layer of grains:
-  elements = generate_elements(options['element_generation_params'], options['simulation_params'], [])
-  system = {'elements' : elements}
+  return d.SimulationParams(options['simulation_params'], options['force_model_params'])
   
-  # construct the simulation params instance and the force model in one fell swoop.
-  system['params'] = d.SimulationParams(options['simulation_params'], options['force_model_params'], system)
+
+
+def generate_stable_pack(params=None):
+  """Generates a granular pack in equilibrium. arguments:
+  params = a dict of options for the simulation. read the source to see what
+           defaults are there to override - there are lots, all at the top.
+this function *returns* the new system - the caller must save it to disk. 
+"""
+  system = {
+    'params' : generate_params(params),
+    'elements' : generate_elements(options['element_generation_params'], options['simulation_params'], []) 
+  }
   
   simulation = l.Simulation(system)
   
