@@ -123,6 +123,8 @@ provided - called automatically if data is provided to the constructor."""
     
     self.constants_modified()
     
+    self.timesteps_run = [0]
+    
   
   def __init__(self, data=None, show_lammps_output=False, renderer=None):
     """data can be provided here, in which case lammps in initialised for use
@@ -315,6 +317,11 @@ or damping have been manually assigned."""
   def compute_energy(self, type=TOTAL):
     return self.lmp.extract_variable(type, None, 0)
   
+  def _run_time_internal(self, timesteps_to_run):
+    self.lmp.command('run ' + str(timesteps_to_run))
+    self.timesteps_run.append(timesteps_to_run)
+    self._update_particles_from_lammps()
+  
   def run_time(self, time, dont_render=False):
     """when a simulation is ready to run timesteps, call this function with the
 number of timesteps to proceed by. You can also provide the number of 
@@ -340,23 +347,20 @@ you, although note that this MUST be a float:
         leftover_timesteps = how_many
       
       for i in range(frames_to_render):
-        self.lmp.command('run ' + str(frame_how_many))
-        self._update_particles_from_lammps()
+        self._run_time_internal(frame_how_many)
         self.renderer.render(self.data)
       if leftover_timesteps > 0:
-        self.lmp.command('run ' + str(leftover_timesteps))
-        self._update_particles_from_lammps()
+        self._run_time_internal(leftover_timesteps)
         self.renderer.render(self.data)
       
     else:
       if how_many <= 0:
         return
-      self.lmp.command('run ' + str(how_many))
-      self._update_particles_from_lammps()
+      self._run_time_internal(how_many)
   
   def _update_particles_from_lammps(self):
     for e in self.data['elements']:
-      e.update_from_lammps()
+      e.update_from_lammps(self.timesteps_run[-1] * self.data['params']['force_model']['timestep'])
   
   def _update_lammps_from_python(self):
     for e in self.data['elements']:

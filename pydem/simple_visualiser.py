@@ -53,6 +53,7 @@ class SimulationRenderer:
     
     self.white = pygame.Color('#FFFFFF')
     self.black = pygame.Color('#000000')
+    self.red = pygame.Color('#FF0000')
     
     self.mode = {
       'x' : self.pixel_density * int(math.ceil(data['params']['x_limit'])),
@@ -98,9 +99,12 @@ class SimulationRenderer:
       # note, y coords on screen are upside down.
       for i, e in enumerate(elements):
         current_id = i
-        current_radius = int(round(self.pixel_density * e.json["radius"] * r_scale))
-        current_x = int(round(self.pixel_density * (e["position"][0] - x_offset) * r_scale))
-        current_y = int(round(self.pixel_density * ((y_limit - e["position"][SimulationRenderer.vertical[1]]) - y_offset) * r_scale))
+        float_r = self.pixel_density * e.json["radius"] * r_scale
+        current_radius = int(round(float_r))
+        float_x = self.pixel_density * (e["position"][0] - x_offset) * r_scale
+        current_x = int(round(float_x))
+        float_y = self.pixel_density * ((y_limit - e["position"][SimulationRenderer.vertical[1]]) - y_offset) * r_scale
+        current_y = int(round(float_y))
         
         # do not draw if zooming and off the screen.
         if hasattr(self, 'zoom') and (
@@ -110,14 +114,45 @@ class SimulationRenderer:
            current_y > self.mode['y'] + current_radius):
           continue
         
+        color = self.black
+        if e['different']:
+          color = self.red
+        
         pygame.gfxdraw.aacircle(
           self.render_surface,
           current_x,
           current_y,
           current_radius,
-          self.black
+          color
         )
-    
+        
+        try:
+          e.json['theta']
+          pygame.gfxdraw.line(
+            self.render_surface,
+            current_x,
+            current_y,
+            int(round(float_x + float_r * math.cos(e.json['theta']))),
+            int(round(float_y + float_r * math.sin(e.json['theta']))),
+            color
+          )
+        except KeyError:
+          pass
+      
+      # now draw an arrow indicating the direction of gravity:
+      gravity_arrow_length = 50
+      g = data['params']['force_model']['gravity']
+      theta = math.atan2(-g[1], g[0])
+      #arrowhead_rotation = math.degrees(theta)
+      
+      centre = (self.mode['x'] / 2, self.mode['y'] / 2)
+      end = (
+        self.mode['x'] / 2 + gravity_arrow_length * math.cos(theta),
+        self.mode['y'] / 2 + gravity_arrow_length * math.sin(theta)
+      )
+      
+      pygame.draw.line(self.render_surface, self.black, centre, end, 3)
+      
       pygame.display.flip()
       self.last_rendered = pygame.time.get_ticks()
       

@@ -93,6 +93,9 @@ class ForceModel(JsonContainer):
       self.initialise_lazy(params)
     
     self.validate()
+    
+    print "just created a force model."
+    print "wall force constants: ", self.json['boundary_constants']
   
   def validate_lazy(self, params):
     for key in ForceModel.compulsory_keys_lazy:
@@ -315,7 +318,7 @@ class Particle(JsonContainer):
       if dimension > 2:
         self.json['angular_velocity'] = [0.0, 0.0, 0.0]
   
-  def update_from_lammps(self):
+  def update_from_lammps(self, delta_t = 0.0):
     dimension = len(self.json['position'])
     
     self.json['position'] = [
@@ -344,7 +347,15 @@ class Particle(JsonContainer):
     self.json['radius'] = self.lammps['radius'].read()
     
     if dimension == 2:
-      self.json['angular_velocity'] = self.lammps['omega'][2]
+      try:
+        new_omega = self.lammps['omega'][2]
+        
+        average_omega = (self.json['angular_velocity'] + new_omega) / 2.0
+        
+        self.json['theta'] += delta_t * average_omega
+      except KeyError:
+        self.json['theta'] = 0.0
+      self.json['angular_velocity'] = new_omega 
     else:
       self.json['angular_velocity'] = [
         self.lammps['omega'][0],
