@@ -262,7 +262,7 @@ this function *returns* the new system - the caller must save it to disk.
 """
   system = {
     'params' : generate_params(params),
-    'elements' : generate_elements(options['element_generation_params'], options['simulation_params'], []) 
+    'elements' : generate_elements(params['element_generation_params'], params['simulation_params'], []) 
   }
   
   simulation = l.Simulation(system)
@@ -273,7 +273,7 @@ this function *returns* the new system - the caller must save it to disk.
   # fill the box
   while not fill_criterion(system):
     # TODO update generate call.
-    simulation.add_particles(generate_elements(options['element_generation_params'], options['simulation_params'], system['elements']))
+    simulation.add_particles(generate_elements(params['element_generation_params'], params['simulation_params'], system['elements']))
     simulation.run_time(5.0)
   
   # now allow to settle to low velocities (note the comparison is on v^2..):
