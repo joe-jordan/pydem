@@ -95,7 +95,13 @@ class SimulationRenderer:
     
     try:
       self.render_surface.fill(self.white)
-    
+      
+      # initialise in case of error on first run.
+      current_id = -1
+      float_r = -1.0
+      float_x = -1.0
+      float_y = -1.0
+      
       # note, y coords on screen are upside down.
       for i, e in enumerate(elements):
         current_id = i
@@ -158,5 +164,6 @@ class SimulationRenderer:
       
     except:
       #just give up on rendering this frame...
-      print "caught a rendering exception, on radius " + str(current_radius) + " and x " + str(current_x) + " and y " + str(current_y) + " and id " + str(current_id)
+      print "caught a rendering exception, on radius", float_r, "and x", float_x, "and y", float_y, "and id", current_id, "and element json:", elements[current_id].json
+      print "current number of elements is", len(elements) 
       raise
