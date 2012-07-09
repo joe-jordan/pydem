@@ -126,23 +126,24 @@ provided - called automatically if data is provided to the constructor."""
     self.timesteps_run = [0]
     
   
-  def __init__(self, data=None, show_lammps_output=False, renderer=None):
+  def __init__(self, data=None):
     """data can be provided here, in which case lammps in initialised for use
 immidiately, or instance.initialise(data) can be called later.
 lammps spits out a LOT to the command line, especially when running with the
 simple visualiser. This is disabled by default, but you can pass
 show_lammps_output=True
 to this constructor to enable it."""
-    self.show_lammps_output = show_lammps_output
+    self.show_lammps_output = False
+    self.show_lammps_input = False
+    self.renderer = None
+    for option in ['show_lammps_output', 'show_lammps_input', 'renderer']:
+      try:
+        setattr(self, option, data['params'][option])
+      except KeyError:
+        pass
     self.fixes_applied = False
     self.atoms_created = 0
     self.lmp = None
-    self.renderer = renderer
-    if self.renderer == None:
-      try:
-        self.renderer = data['params']['renderer']
-      except KeyError:
-        pass
     if data != None:
       self.initialise(data)
   
@@ -261,8 +262,12 @@ or damping have been manually assigned."""
   
   def _generate_gravity_fix(self):
     g = self.data['params']['force_model']['gravity']
+    g_length = vector_length(g)
+    # if we are disabling gravity, we want to make sure the vector is nonzero.
+    if g_length == 0.0:
+      g = [1.0, 0.0, 0.0]
     return Simulation._gravity_fix.replace(
-      'GRAVITY_SIZE', str(vector_length(g)) ).replace(
+      'GRAVITY_SIZE', str(g_length) ).replace(
       'GRAVITY_X', str(g[0]) ).replace(
       'GRAVITY_Y', str(g[1]) ).replace(
       'GRAVITY_Z', str(g[2]) if self.data['params']['dimension'] == 3 else '0.0')
@@ -318,7 +323,7 @@ or damping have been manually assigned."""
     return self.lmp.extract_variable(type, None, 0)
   
   def _run_time_internal(self, timesteps_to_run):
-    self.lmp.command('run ' + str(timesteps_to_run))
+    self._run_commands(['run ' + str(timesteps_to_run)])
     self.timesteps_run.append(timesteps_to_run)
     self._update_particles_from_lammps()
   
@@ -368,28 +373,34 @@ you, although note that this MUST be a float:
   
   def _run_commands(self, commands):
     for c in commands:
+      if self.show_lammps_input:
+        print "INPUT>",c
       self.lmp.command(c)
   
   def update_gravity(self, g):
     """allows you to change size/direction of gravity mid-simulation."""
-    self.lmp.command('unfix grav')
+    self._run_commands(['unfix grav'])
     self.data['params']['force_model']['gravity'] = g
-    self.lmp.command(self._generate_gravity_fix())
+    self._run_commands([self._generate_gravity_fix()])
   
   def limit_velocities(self, timestep_distance_limit):
     """can be used to bring the system into equilibrium at the end - limiting
 velocities to very low values can reduce endless vibration."""
-    self.lmp.command("unfix update_positions")
-    self.lmp.command("fix update_positions all nve/limit " + str(timestep_distance_limit))
+    self._run_commands([
+      "unfix update_positions",
+      "fix update_positions all nve/limit " + str(timestep_distance_limit)
+    ])
   
   def delimit_velocities(self):
-    self.lmp.command("unfix update_positions")
-    self.lmp.command("fix update_positions all nve/sphere")
+    self._run_commands([
+      "unfix update_positions",
+      "fix update_positions all nve/sphere"
+    ])
   
   def close(self):
     """use this method if you want to instantiate a new simulation without
     restarting python."""
-    self.lmp.command('clear')
+    self._run_commands(['clear'])
     self.lmp = None
 
 def _string_sub(string, params):

@@ -121,8 +121,11 @@ class SimulationRenderer:
           continue
         
         color = self.black
-        if e['different']:
-          color = self.red
+        try:
+          if e['different']:
+            color = self.red
+        except KeyError:
+          pass
         
         pygame.gfxdraw.aacircle(
           self.render_surface,
