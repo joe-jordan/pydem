@@ -75,6 +75,8 @@ pair_coeff * *
 
 fix update_positions all nve/sphere
 
+DRAG_FIX
+
 2D_FIX
 
 GRAVITY
@@ -287,6 +289,12 @@ or damping have been manually assigned."""
         ) if fm['include_tangential_forces'] else '0.5',
         'INCLUDE_TANGENTIAL_FRICTION' : '1' if fm['include_tangential_forces'] else '0'
       }))
+    
+    
+    drag_fix = ""
+    if fm['include_drag_force']:
+      drag_fix = 'fix viscdrag all viscous ' + str(fm['drag_force_gamma'])
+    script = script.replace('DRAG_FIX', drag_fix)
     
     d2fix = ""
     if self.data['params']['dimension'] == 2:
