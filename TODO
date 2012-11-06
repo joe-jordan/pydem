@@ -1,7 +1,5 @@
-testing of save/reload features (and implementation of endpoint wrappers.)
-
 debug simulations at low collision_time_ratio s (30 seemed to have errors, 100 less so. also appeared to be a dependence on frame rate -> number of simulation steps run at a time, which shouldn't matter if our assumptions are valid!)
 
-implementation of remove (and/or freeze) atoms features. -- have decided to only support freezing, to simplify pointer sync.
-
 implementation of binaries for running simulations and/or generating packs.
+
+update to use newer lammps python build system released summer 2012.
