@@ -218,12 +218,15 @@ instance.data['elements'], as lammps will not be notified."""
       Simulation._create_atoms_template.replace('NUM_ATOMS', str(len(new_particles)))
     ])
     
-    self._sync_pointers(new_particles, start_index=self.atoms_created, write_properties=True)
+    if not already_in_array:
+      self.data['elements'].extend(new_particles)
+    
+    # sync ALL pointers when we add new particles - arrays may have been moved in RAM by lammps.
+    self._sync_pointers(self.data['elements'], start_index=0, write_properties=True)
     
     self.atoms_created += len(new_particles)
     
-    if not already_in_array:
-      self.data['elements'].extend(new_particles)
+    
   
   def remove_particles(self, defunct_particles):
     """use this to safely remove particles from the simulation. The particles
