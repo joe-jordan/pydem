@@ -108,7 +108,10 @@ class ForceModel(JsonContainer):
     if params['type'] == ForceModelType.HOOKIAN:
       self.initialise_lazy_hookian(params)
     else:
-      raise Exception('hookian force model initialisation is the only type to have been implemented in the wrapper so far - you may specify your own herzian spring/damping values.')
+      s = """hookian force model initialisation is the only type to have been
+      implemented in the wrapper so far - you may specify your own herzian 
+      spring/damping values."""
+      raise Exception(s)
   
   def initialise_lazy_hookian(self, params):
     self.json['type'] = ForceModelType.HOOKIAN
