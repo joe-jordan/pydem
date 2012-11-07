@@ -93,9 +93,6 @@ class ForceModel(JsonContainer):
       self.initialise_lazy(params)
     
     self.validate()
-    
-    print "just created a force model."
-    print "wall force constants: ", self.json['boundary_constants']
   
   def validate_lazy(self, params):
     for key in ForceModel.compulsory_keys_lazy:
@@ -119,17 +116,24 @@ class ForceModel(JsonContainer):
     if 'gravity' not in params:
       self.json['gravity'] = [0.0, -9.8]
     
-    if 'tangential_ratio' not in params:
-      self.json['tangential_ratio'] = 2.0 / 7.0
+    self.json['tangential_ratio'] = params['tangential_ratio'] if 'tangential_ratio' in params.keys() else 2.0 / 7.0
     
     # pairwise:
     pairwise_constants = {}
     max_mass = params['max_mass']
     min_mass = params['min_mass']
     
-    # max_mass / 2.0 is the max reduced mass, and height * g is max velocity squared.
+    max_velocity_sq = vector_length(self.json['gravity']) * params['container_height']
+    
+    self.json['include_drag_force'] = 0
+    if params['include_drag_force']:
+      max_velocity_sq = max_velocity_sq * (params['terminal_velocity_ratio'] ** 2)
+      self.json['include_drag_force'] = 1
+      self.json['drag_force_gamma'] = max_mass * vector_length(self.json['gravity']) / math.sqrt(max_velocity_sq)
+    
+    # max_mass / 2.0 is the max reduced mass
     pairwise_constants['spring_constant_norm'] = (
-      (max_mass / 2.0) * (vector_length(self.json['gravity']) * params['container_height'])
+      (max_mass / 2.0) * max_velocity_sq
     ) / (
       params['min_radius'] * 2.0 * params['max_overlap_ratio']
     ) ** 2
