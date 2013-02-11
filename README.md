@@ -54,46 +54,52 @@ Installation Instructions:
 
 Building LAMMPS is big and complicated and tricky, they have a whole documentation section devoted to it; but fear not! it is slightly simpler to do, if you only want support as a python library.
 
+0) check out lammps with git like so (much faster than the old SVN checkouts):
+
+    git clone http://git.icms.temple.edu/lammps-ro.git lammps-checkout
+
 1) install the GRANULAR module
 
     cd lammps-checkout/src
     make yes-granular
-
-2) *for now* apply my patches
-
     cd ..
-    patch -p0 -i pydem-checkout-path/patches/all.diff
+
+2) *for now* apply my patch (old patches here have been merged in a bit.)
+
+    patch -p0 -i pydem-checkout-path/patches/0001-adding-support-for-atom-deletion-by-id.patch
 
 (where `pydem-checkout-path` is a valid path to a checkout of this project, obviously.)
 
-3) run make at least once - this is required so that some header files are in the right place. it doesn't need to succeed.
+3) we now actually build the dynamic library in this step (before it was just to generate some of the class headers.)
 
     cd src
     
     # e.g. for mac:
-    make mac
+    make -f Makefile.shlib mac
     
     # or linux:
-    make serial
+    make -f Makefile.shlib serial
     
     # either of these will be followed by loads of output from make and gcc.
 
 (type `make` for a full list of makefiles included.)
 
-4) install lammps python module as usual using `setup.py` (note, I tend to do this in two steps so that the temporary build files are not owned by root, which is annoying to clean up later.)
+4.1) double check the locations that CDLL will search for shell libraries. On Mac OS X, the system searches `/usr/local/lib` before `/usr/lib`; on debian linux it *only* searches the latter!
+
+    man dlopen
+
+4.2) install lammps python module as usual using `setup.py` (note, I tend to do this in two steps so that the temporary build files are not owned by root, which is annoying to clean up later.)
 
     cd ../python
-    python setup_serial.py build
-    
-    # (expect a load more compiler output)
-    
-    sudo python setup_serial.py install
+    sudo python install.py /library/load/path
 
+(where `/libarary/load/path` is something like `/usr/lib` -- the default for this value is `/usr/local/lib`/)
+    
 5) Finally, you're ready to install *my* python bindings! Same drill as the last step:
 
     cd pydem-checkout-path
     python setup.py build
-    sudo python setup.py install
+    sudo python setup.py install # (or python setup.py install --user)
 
 You're now ready to test it all using my example script for a 2D simulation with visualisations (which requires `pygame`, which comes with oneclick installers for most platforms.)
 

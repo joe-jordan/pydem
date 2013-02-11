@@ -1,7 +1,13 @@
-Index: src/delete_atoms.cpp
-===================================================================
---- src/delete_atoms.cpp	(revision 8389)
-+++ src/delete_atoms.cpp	(working copy)
+From 365835771094088959b6d347476ff8fd80e322ea Mon Sep 17 00:00:00 2001
+From: Joe Jordan <joe.jordan@imperial.ac.uk>
+Date: Fri, 8 Feb 2013 13:37:13 +0000
+Subject: [PATCH] adding support for atom deletion by id
+
+
+diff --git a/src/delete_atoms.cpp b/src/delete_atoms.cpp
+index dc70d85..16f5a08 100644
+--- a/src/delete_atoms.cpp
++++ b/src/delete_atoms.cpp
 @@ -27,6 +27,7 @@
  #include "random_mars.h"
  #include "memory.h"
@@ -10,7 +16,7 @@ Index: src/delete_atoms.cpp
  
  using namespace LAMMPS_NS;
  
-@@ -54,6 +55,7 @@
+@@ -54,6 +55,7 @@ void DeleteAtoms::command(int narg, char **arg)
    else if (strcmp(arg[0],"region") == 0) delete_region(narg,arg);
    else if (strcmp(arg[0],"overlap") == 0) delete_overlap(narg,arg);
    else if (strcmp(arg[0],"porosity") == 0) delete_porosity(narg,arg);
@@ -18,7 +24,7 @@ Index: src/delete_atoms.cpp
    else error->all(FLERR,"Illegal delete_atoms command");
  
    // delete local atoms flagged in dlist
-@@ -137,6 +139,41 @@
+@@ -137,6 +139,41 @@ void DeleteAtoms::delete_group(int narg, char **arg)
  }
  
  /* ----------------------------------------------------------------------
@@ -60,11 +66,11 @@ Index: src/delete_atoms.cpp
     delete all atoms in region
  ------------------------------------------------------------------------- */
  
-Index: src/delete_atoms.h
-===================================================================
---- src/delete_atoms.h	(revision 8389)
-+++ src/delete_atoms.h	(working copy)
-@@ -37,6 +37,7 @@
+diff --git a/src/delete_atoms.h b/src/delete_atoms.h
+index a1d8104..7c6018f 100644
+--- a/src/delete_atoms.h
++++ b/src/delete_atoms.h
+@@ -37,6 +37,7 @@ class DeleteAtoms : protected Pointers {
    void delete_region(int, char **);
    void delete_overlap(int, char **);
    void delete_porosity(int, char **);
@@ -72,11 +78,12 @@ Index: src/delete_atoms.h
    void options(int, char **);
  
    inline int sbmask(int j) {
-Index: src/integer_parsing.cpp
-===================================================================
---- src/integer_parsing.cpp	(revision 0)
-+++ src/integer_parsing.cpp	(revision 0)
-@@ -0,0 +1,46 @@
+diff --git a/src/integer_parsing.cpp b/src/integer_parsing.cpp
+new file mode 100644
+index 0000000..8d3f68d
+--- /dev/null
++++ b/src/integer_parsing.cpp
+@@ -0,0 +1,92 @@
 +/* ----------------------------------------------------------------------
 +   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
 +   http://lammps.sandia.gov, Sandia National Laboratories
@@ -123,11 +130,58 @@ Index: src/integer_parsing.cpp
 +    i = l;
 +    return STR2INT_SUCCESS;
 +}
-Index: src/integer_parsing.h
-===================================================================
---- src/integer_parsing.h	(revision 0)
-+++ src/integer_parsing.h	(revision 0)
-@@ -0,0 +1,31 @@
++/* ----------------------------------------------------------------------
++   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
++   http://lammps.sandia.gov, Sandia National Laboratories
++   Steve Plimpton, sjplimp@sandia.gov
++
++   Copyright (2003) Sandia Corporation.  Under the terms of Contract
++   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
++   certain rights in this software.  This software is distributed under
++   the GNU General Public License.
++
++   See the README file in the top-level LAMMPS directory.
++------------------------------------------------------------------------- */
++
++/* ----------------------------------------------------------------------
++   This file contributed by Joe Jordan (joe.jordan@imperial.ac.uk)
++
++   This file uses the method recommended here:
++
++   http://stackoverflow.com/questions/194465/how-to-parse-a-string-to-an-int-in-c
++
++   as the simplest way in C or C++ to parse integers from a string.
++------------------------------------------------------------------------- */
++
++#include <stdlib.h>
++#include <cerrno>
++#include <climits>
++#include "integer_parsing.h"
++
++STR2INT_ERROR str2int (int &i, char const *s, int base)
++{
++    char *end;
++    long  l;
++    errno = 0;
++    l = strtol(s, &end, base);
++    if ((errno == ERANGE && l == LONG_MAX) || l > INT_MAX) {
++        return STR2INT_OVERFLOW;
++    }
++    if ((errno == ERANGE && l == LONG_MIN) || l < INT_MIN) {
++        return STR2INT_UNDERFLOW;
++    }
++    if (*s == '\0' || *end != '\0') {
++        return STR2INT_INCONVERTIBLE;
++    }
++    i = l;
++    return STR2INT_SUCCESS;
++}
+diff --git a/src/integer_parsing.h b/src/integer_parsing.h
+new file mode 100644
+index 0000000..f021327
+--- /dev/null
++++ b/src/integer_parsing.h
+@@ -0,0 +1,62 @@
 +/* ----------------------------------------------------------------------
 +   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
 +   http://lammps.sandia.gov, Sandia National Laboratories
@@ -159,3 +213,37 @@ Index: src/integer_parsing.h
 +STR2INT_ERROR str2int (int &i, char const *s, int base = 0);
 +
 +#endif
++/* ----------------------------------------------------------------------
++   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
++   http://lammps.sandia.gov, Sandia National Laboratories
++   Steve Plimpton, sjplimp@sandia.gov
++
++   Copyright (2003) Sandia Corporation.  Under the terms of Contract
++   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
++   certain rights in this software.  This software is distributed under
++   the GNU General Public License.
++
++   See the README file in the top-level LAMMPS directory.
++------------------------------------------------------------------------- */
++
++/* ----------------------------------------------------------------------
++   This file contributed by Joe Jordan (joe.jordan@imperial.ac.uk)
++
++   This file uses the method recommended here:
++
++   http://stackoverflow.com/questions/194465/how-to-parse-a-string-to-an-int-in-c
++
++   as the simplest and fastest way in C or C++ to parse integers from a string.
++------------------------------------------------------------------------- */
++
++#ifndef INT_PARSING_EXTN_JFJ
++#define INT_PARSING_EXTN_JFJ 1
++
++enum STR2INT_ERROR { STR2INT_SUCCESS, STR2INT_OVERFLOW, STR2INT_UNDERFLOW, STR2INT_INCONVERTIBLE };
++
++STR2INT_ERROR str2int (int &i, char const *s, int base = 0);
++
++#endif
+-- 
+1.7.10.4
+
