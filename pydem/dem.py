@@ -35,6 +35,11 @@ from pydem import ForceModelType, vector_length
 from better_ctypes import PointerFromArray
 import lammps
 
+LMPIPTR = 0
+LMPIPTRPTR = 1
+LMPDPTR = 2
+LMPDPTRPTR = 3
+
 class Simulation:
   """a class to encapsulate the lifetime of a simulation, and marshal the
   lammps instance and associated ctypes and function calls.
@@ -90,12 +95,12 @@ timestep DELTA_T"""
   _2d_fix = "fix enforce_planar all enforce2d"
   
   _lammps_extracts = {
-    'x' : lammps.LMPDPTRPTR,
-    'v' : lammps.LMPDPTRPTR,
-    'f' : lammps.LMPDPTRPTR,
-    'rmass' : lammps.LMPDPTR,
-    'radius' : lammps.LMPDPTR,
-    'omega' : lammps.LMPDPTRPTR
+    'x' : LMPDPTRPTR,
+    'v' : LMPDPTRPTR,
+    'f' : LMPDPTRPTR,
+    'rmass' : LMPDPTR,
+    'radius' : LMPDPTR,
+    'omega' : LMPDPTRPTR
   }
   
   _spring_types = {
@@ -115,7 +120,7 @@ provided - called automatically if data is provided to the constructor."""
       args = ['-log', 'none']
       if not self.show_lammps_output:
         args.extend(['-screen', 'none'])
-      self.lmp = lammps.lammps(args=args)
+      self.lmp = lammps.lammps(cmdargs=args)
     
     commands = self.commands_from_script(self._build_init())
     
@@ -201,7 +206,7 @@ to this constructor to enable it."""
       params = {}
       for key, value in vars.items():
         try:
-          if Simulation._lammps_extracts[key] == lammps.LMPDPTR:
+          if Simulation._lammps_extracts[key] == LMPDPTR:
             params[key] = PointerFromArray(value, start_index + i)
           else:
             # PTRPTRs are fine, as we get a new PTR from the subscript call.
